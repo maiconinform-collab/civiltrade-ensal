@@ -14,6 +14,69 @@ export type Database = {
   }
   public: {
     Tables: {
+      auditorio_eventos: {
+        Row: {
+          created_at: string
+          descricao: string | null
+          fim: string
+          id: string
+          inicio: string
+          local: string | null
+          nome: string
+          responsavel: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          descricao?: string | null
+          fim: string
+          id?: string
+          inicio: string
+          local?: string | null
+          nome: string
+          responsavel?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          descricao?: string | null
+          fim?: string
+          id?: string
+          inicio?: string
+          local?: string | null
+          nome?: string
+          responsavel?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      avisos: {
+        Row: {
+          ativo: boolean
+          created_at: string
+          id: string
+          ordem: number
+          texto: string
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          ordem?: number
+          texto: string
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean
+          created_at?: string
+          id?: string
+          ordem?: number
+          texto?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       disciplinas: {
         Row: {
           carga_horaria: number | null
@@ -157,6 +220,27 @@ export type Database = {
           foto_url?: string | null
           id?: string
           nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          created_at: string
+          id: string
+          nome: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          nome?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          nome?: string | null
           updated_at?: string
         }
         Relationships: []
