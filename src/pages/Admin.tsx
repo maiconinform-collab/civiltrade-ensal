@@ -155,8 +155,12 @@ const Admin = () => {
             })}
           </nav>
 
-          <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-border space-y-2">
-            <div className="px-3 py-2 text-xs text-muted-foreground truncate">{email}</div>
+          <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-border space-y-2 bg-background/80 backdrop-blur-md">
+            <div className="px-3 pb-1 pt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
+              <img src="/avatar.png.PNG" alt="Maicon Show" className="w-6 h-6 rounded-full border border-primary/20 shadow-sm object-cover" />
+              <span>Desenvolvido por <span className="font-semibold text-foreground">Maicon Show</span> 👨🏽‍💻</span>
+            </div>
+            <div className="px-3 pb-2 text-xs text-muted-foreground truncate border-b border-border/50">{email}</div>
             <Link to="/tv" target="_blank">
               <Button variant="outline" size="sm" className="w-full justify-start">
                 <Monitor className="w-4 h-4 mr-2" /> Abrir TV
