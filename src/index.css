@@ -4,7 +4,7 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
 
-/* Afya Design System - Rosa #E63E7C / Branco - Minimalista e Moderno */
+/* Afya Premium Design System — Glassmorphism + Mesh Gradient */
 
 @layer base {
   :root {
@@ -17,14 +17,16 @@
     --popover: 0 0% 100%;
     --popover-foreground: 270 25% 12%;
 
-    /* Afya Pink - identidade da marca */
+    /* Afya Pink — dinamicamente sobrescrito por settings */
     --primary: 336 78% 56%;
     --primary-foreground: 0 0% 100%;
     --primary-glow: 336 90% 70%;
     --primary-soft: 336 78% 96%;
 
-    --secondary: 336 78% 56%;
+    /* Roxo do tema OKLCH */
+    --secondary: 280 65% 55%;
     --secondary-foreground: 0 0% 100%;
+    --secondary-glow: 280 80% 70%;
 
     --muted: 270 20% 96%;
     --muted-foreground: 270 10% 40%;
@@ -47,18 +49,33 @@
 
     --radius: 0.75rem;
 
+    /* Glass tokens */
+    --glass-bg: 0 0% 100% / 0.55;
+    --glass-border: 0 0% 100% / 0.6;
+    --glass-shadow: 336 60% 30% / 0.12;
+
     /* Gradientes */
     --gradient-primary: linear-gradient(135deg, hsl(336 78% 56%), hsl(336 90% 68%));
-    --gradient-soft: linear-gradient(180deg, hsl(0 0% 100%), hsl(336 50% 98%));
-    --gradient-hero: linear-gradient(135deg, hsl(336 78% 56%) 0%, hsl(320 75% 50%) 100%);
+    --gradient-brand: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));
+    --gradient-mesh:
+      radial-gradient(at 12% 18%, hsl(var(--primary) / 0.55) 0px, transparent 55%),
+      radial-gradient(at 88% 12%, hsl(var(--secondary) / 0.45) 0px, transparent 55%),
+      radial-gradient(at 75% 88%, hsl(210 80% 60% / 0.4) 0px, transparent 55%),
+      radial-gradient(at 18% 82%, hsl(336 78% 65% / 0.45) 0px, transparent 55%),
+      linear-gradient(180deg, hsl(220 33% 98%), hsl(280 30% 96%));
+    --gradient-mesh-dark:
+      radial-gradient(at 12% 18%, hsl(var(--primary) / 0.45) 0px, transparent 55%),
+      radial-gradient(at 88% 12%, hsl(var(--secondary) / 0.4) 0px, transparent 55%),
+      radial-gradient(at 75% 88%, hsl(210 80% 50% / 0.35) 0px, transparent 55%),
+      radial-gradient(at 18% 82%, hsl(336 78% 50% / 0.35) 0px, transparent 55%),
+      linear-gradient(180deg, hsl(270 30% 8%), hsl(280 35% 6%));
 
-    /* Sombras suaves */
     --shadow-sm: 0 2px 8px -2px hsl(336 50% 30% / 0.08);
     --shadow-md: 0 6px 20px -6px hsl(336 50% 30% / 0.12);
     --shadow-lg: 0 12px 40px -10px hsl(336 50% 30% / 0.18);
-    --shadow-glow: 0 0 32px hsl(336 78% 56% / 0.25);
+    --shadow-glow: 0 0 32px hsl(var(--primary) / 0.35);
+    --shadow-brand: 0 20px 60px -20px hsl(var(--primary) / 0.4);
 
-    /* Transições */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 
     --sidebar-background: 0 0% 100%;
@@ -86,8 +103,8 @@
     --primary-glow: 336 90% 70%;
     --primary-soft: 336 40% 18%;
 
-    --secondary: 270 20% 18%;
-    --secondary-foreground: 220 20% 96%;
+    --secondary: 280 65% 60%;
+    --secondary-foreground: 0 0% 100%;
 
     --muted: 270 20% 16%;
     --muted-foreground: 270 10% 65%;
@@ -101,6 +118,9 @@
     --border: 270 20% 20%;
     --input: 270 20% 20%;
     --ring: 336 78% 60%;
+
+    --glass-bg: 270 25% 14% / 0.6;
+    --glass-border: 270 30% 30% / 0.4;
   }
 }
 
@@ -125,11 +145,26 @@
   .gradient-primary {
     background: var(--gradient-primary);
   }
-  .gradient-hero {
-    background: var(--gradient-hero);
+  .gradient-brand {
+    background: var(--gradient-brand);
+  }
+  .gradient-mesh {
+    background: var(--gradient-mesh);
+    background-size: 200% 200%;
+  }
+  .gradient-mesh-dark {
+    background: var(--gradient-mesh-dark);
+    background-size: 200% 200%;
+  }
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-brand);
   }
   .shadow-glow {
     box-shadow: var(--shadow-glow);
+  }
+  .shadow-brand {
+    box-shadow: var(--shadow-brand);
   }
   .text-balance {
     text-wrap: balance;
@@ -137,29 +172,57 @@
   .transition-smooth {
     transition: var(--transition-smooth);
   }
+
+  /* Glassmorphism */
+  .glass {
+    background: hsl(var(--glass-bg));
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid hsl(var(--glass-border));
+  }
+  .glass-card {
+    @apply glass rounded-2xl;
+    box-shadow:
+      0 8px 32px -8px hsl(var(--glass-shadow)),
+      inset 0 1px 0 hsl(0 0% 100% / 0.5);
+  }
+  .glass-strong {
+    background: hsl(var(--glass-bg));
+    backdrop-filter: blur(32px) saturate(200%);
+    -webkit-backdrop-filter: blur(32px) saturate(200%);
+    border: 1px solid hsl(var(--glass-border));
+  }
 }
 
+/* ==== Animações ==== */
 @keyframes pulse-ring {
-  0% {
-    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.5);
-  }
-  70% {
-    box-shadow: 0 0 0 12px hsl(var(--primary) / 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 hsl(var(--primary) / 0);
-  }
+  0%   { box-shadow: 0 0 0 0 hsl(var(--primary) / 0.5); }
+  70%  { box-shadow: 0 0 0 14px hsl(var(--primary) / 0); }
+  100% { box-shadow: 0 0 0 0 hsl(var(--primary) / 0); }
 }
-
-.animate-pulse-ring {
-  animation: pulse-ring 2s infinite;
-}
+.animate-pulse-ring { animation: pulse-ring 2s infinite; }
 
 @keyframes slide-up {
   from { opacity: 0; transform: translateY(20px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
+.animate-slide-up { animation: slide-up 0.5s cubic-bezier(0.4, 0, 0.2, 1) both; }
 
-.animate-slide-up {
-  animation: slide-up 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
+.animate-fade-in { animation: fade-in 0.6s ease-out both; }
+
+@keyframes mesh-shift {
+  0%   { background-position: 0% 50%; }
+  50%  { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.animate-mesh { animation: mesh-shift 22s ease-in-out infinite; }
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50%      { transform: translateY(-8px); }
+}
+.animate-float { animation: float 5s ease-in-out infinite; }
