@@ -100,7 +100,7 @@ const Login = () => {
         </div>
 
         <p className="text-center text-sm text-muted-foreground mt-6">
-          Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon</span>
+          Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon</span> 👨🏽‍💻
         </p>
       </div>
     </div>

@@ -62,7 +62,7 @@ const Index = () => {
       </main>
 
       <footer className="py-6 text-center text-sm text-muted-foreground">
-        Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon</span>
+        Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon</span> 👨🏽‍💻
       </footer>
     </div>
   );
