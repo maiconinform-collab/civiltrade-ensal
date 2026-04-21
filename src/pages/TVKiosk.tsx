@@ -133,28 +133,28 @@ const TVKiosk = () => {
   const fmtEvento = (iso: string) => new Date(iso).toLocaleString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
   return (
-    <div className="min-h-screen w-screen overflow-hidden gradient-mesh animate-mesh relative flex flex-col">
+    <div className="min-h-screen w-full overflow-x-hidden gradient-mesh animate-mesh relative flex flex-col">
       {/* Header */}
-      <header className="px-6 md:px-10 pt-6 pb-3 flex flex-wrap items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
+      <header className="px-4 sm:px-6 md:px-10 pt-4 sm:pt-6 pb-3 flex flex-wrap items-center justify-between gap-3 sm:gap-4">
+        <div className="flex items-center gap-3 sm:gap-4 min-w-0">
           {settings.logo_url ? (
-            <img src={settings.logo_url} alt={settings.brand_name} className="w-14 h-14 md:w-16 md:h-16 rounded-2xl object-cover shadow-glow" />
+            <img src={settings.logo_url} alt={settings.brand_name} className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-2xl object-cover shadow-glow flex-shrink-0" />
           ) : (
-            <div className="w-14 h-14 md:w-16 md:h-16 rounded-2xl gradient-brand flex items-center justify-center shadow-brand">
-              <GraduationCap className="w-8 h-8 md:w-9 md:h-9 text-primary-foreground" />
+            <div className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-2xl gradient-brand flex items-center justify-center shadow-brand flex-shrink-0">
+              <GraduationCap className="w-7 h-7 sm:w-8 sm:h-8 md:w-9 md:h-9 text-primary-foreground" />
             </div>
           )}
-          <div>
-            <h1 className="text-3xl md:text-5xl font-bold gradient-text leading-none">{settings.brand_name}</h1>
-            <p className="text-muted-foreground text-sm md:text-xl mt-1">{settings.unit_name}</p>
+          <div className="min-w-0">
+            <h1 className="text-xl sm:text-3xl md:text-5xl font-bold gradient-text leading-none truncate">{settings.brand_name}</h1>
+            <p className="text-muted-foreground text-xs sm:text-sm md:text-xl mt-1 truncate">{settings.unit_name}</p>
           </div>
         </div>
 
-        <div className="text-right glass-card px-5 md:px-8 py-3 md:py-4">
-          <div className="text-4xl md:text-6xl font-bold tabular-nums tracking-tight gradient-text leading-none">
+        <div className="text-right glass-card px-3 sm:px-5 md:px-8 py-2 sm:py-3 md:py-4 ml-auto">
+          <div className="text-2xl sm:text-4xl md:text-6xl font-bold tabular-nums tracking-tight gradient-text leading-none">
             {timeStr}
           </div>
-          <div className="text-muted-foreground capitalize text-xs md:text-base mt-1 md:mt-2">{dateStr}</div>
+          <div className="text-muted-foreground capitalize text-[10px] sm:text-xs md:text-base mt-1 md:mt-2">{dateStr}</div>
         </div>
       </header>
 
