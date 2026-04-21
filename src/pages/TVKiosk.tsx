@@ -159,7 +159,7 @@ const TVKiosk = () => {
       </header>
 
       {/* Status badges */}
-      <div className="px-6 md:px-10 pb-3 flex flex-wrap items-center gap-2 md:gap-3">
+      <div className="px-4 sm:px-6 md:px-10 pb-3 flex flex-wrap items-center gap-2 md:gap-3">
         <span className="glass-card px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-medium inline-flex items-center gap-2">
           <Radio className="w-3 h-3 md:w-4 md:h-4 text-destructive animate-pulse" />
           <span className="text-primary font-bold">{ocorrendo}</span> ao vivo agora
@@ -172,14 +172,45 @@ const TVKiosk = () => {
         </span>
       </div>
 
+      {/* Error banner */}
+      {loadError && (
+        <div className="mx-4 sm:mx-6 md:mx-10 mb-3 glass-card border-destructive/40 bg-destructive/10 px-4 py-3 flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+          <div className="text-xs md:text-sm min-w-0">
+            <p className="font-bold text-destructive">Erro ao carregar dados</p>
+            <p className="text-muted-foreground break-words">{loadError}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile tabs (only < xl) */}
+      <div className="xl:hidden px-4 sm:px-6 pb-3 flex gap-2">
+        <button
+          onClick={() => setMobileTab("ensalamento")}
+          className={`flex-1 px-4 py-2 rounded-xl text-sm font-bold transition-smooth ${
+            mobileTab === "ensalamento" ? "gradient-brand text-primary-foreground shadow-brand" : "glass-card text-muted-foreground"
+          }`}
+        >
+          Ensalamento ({sorted.length})
+        </button>
+        <button
+          onClick={() => setMobileTab("auditorio")}
+          className={`flex-1 px-4 py-2 rounded-xl text-sm font-bold transition-smooth ${
+            mobileTab === "auditorio" ? "gradient-brand text-primary-foreground shadow-brand" : "glass-card text-muted-foreground"
+          }`}
+        >
+          Auditório ({eventos.length})
+        </button>
+      </div>
+
       {/* Main grid + sidebar */}
-      <main className="px-6 md:px-10 pb-3 flex-1 grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-4 md:gap-5 min-h-0">
-        <section className="overflow-hidden">
+      <main className="px-4 sm:px-6 md:px-10 pb-3 flex-1 grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-4 md:gap-5 min-h-0">
+        <section className={`overflow-hidden ${mobileTab === "auditorio" ? "hidden xl:block" : ""}`}>
           {sorted.length === 0 ? (
             <div className="h-full flex items-center justify-center">
-              <div className="glass-card p-12 text-center max-w-md">
+              <div className="glass-card p-8 md:p-12 text-center max-w-md">
                 <GraduationCap className="w-16 h-16 mx-auto text-primary mb-4" />
-                <h2 className="text-3xl font-bold mb-2">Nenhuma aula em andamento</h2>
+                <h2 className="text-2xl md:text-3xl font-bold mb-2">Nenhuma aula em andamento</h2>
                 <p className="text-muted-foreground">Aproveite seu dia! 🌸</p>
               </div>
             </div>
@@ -193,8 +224,8 @@ const TVKiosk = () => {
                 return (
                   <div
                     key={r.id}
-                    className={`glass-card p-5 md:p-6 transition-smooth animate-slide-up cursor-pointer hover:-translate-y-1 hover:border-primary hover:shadow-brand relative ${
-                      isDone ? "opacity-40" : ""
+                    className={`glass-card p-4 sm:p-5 md:p-6 transition-smooth animate-slide-up cursor-pointer hover:-translate-y-1 hover:border-primary hover:shadow-brand relative ${
+                      isDone ? "opacity-50" : ""
                     } ${isNow ? "ring-4 ring-primary shadow-brand bg-primary/5 animate-pulse-ring" : ""}`}
                   >
                     {isNow && (
@@ -209,26 +240,26 @@ const TVKiosk = () => {
                       </div>
                     )}
 
-                    <div className="flex items-start justify-between mb-3 mt-1">
-                      <div className="flex items-center gap-2">
-                        <MapPin className="w-5 h-5 text-primary" />
-                        <span className="text-xl md:text-2xl font-bold">{r.sala}</span>
+                    <div className="flex items-start justify-between mb-3 mt-1 gap-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                        <MapPin className="w-5 h-5 text-primary flex-shrink-0" />
+                        <span className="text-lg sm:text-xl md:text-2xl font-bold truncate">{r.sala}</span>
                         {r.bloco && <span className="text-xs md:text-sm text-muted-foreground">• Bloco {r.bloco}</span>}
                       </div>
                     </div>
 
-                    <h3 className={`text-lg md:text-xl font-semibold mb-3 text-balance line-clamp-2 ${isNow ? "text-primary" : ""}`}>
+                    <h3 className={`text-base sm:text-lg md:text-xl font-semibold mb-3 text-balance line-clamp-2 ${isNow ? "text-primary" : ""}`}>
                       {(r as any).disciplina}
                     </h3>
 
                     <div className="space-y-1.5 text-sm text-muted-foreground">
                       <div className="flex items-center gap-2">
-                        <Clock className="w-4 h-4" />
+                        <Clock className="w-4 h-4 flex-shrink-0" />
                         <span className="tabular-nums font-medium">{r.horario}</span>
                       </div>
                       {r.professor && (
                         <div className="flex items-center gap-2">
-                          <User className="w-4 h-4" />
+                          <User className="w-4 h-4 flex-shrink-0" />
                           <span className="truncate">{r.professor}</span>
                         </div>
                       )}
@@ -240,10 +271,10 @@ const TVKiosk = () => {
           )}
         </section>
 
-        {/* Sidebar (desktop): Auditório + QR */}
-        <aside className="hidden xl:flex flex-col gap-4 min-h-0">
-          <div className="glass-card p-5 flex-1 min-h-0 flex flex-col">
-            <h3 className="font-bold text-lg flex items-center gap-2 mb-3">
+        {/* Sidebar (Auditório + QR): visible on desktop always; on mobile only when tab=auditorio */}
+        <aside className={`flex-col gap-4 min-h-0 ${mobileTab === "auditorio" ? "flex" : "hidden"} xl:flex`}>
+          <div className="glass-card p-4 sm:p-5 flex-1 min-h-0 flex flex-col">
+            <h3 className="font-bold text-base sm:text-lg flex items-center gap-2 mb-3">
               <Mic className="w-5 h-5 text-primary" /> Próximos no Auditório
             </h3>
             <div className="space-y-3 overflow-y-auto pr-1 flex-1">
@@ -252,10 +283,10 @@ const TVKiosk = () => {
               ) : eventos.map((e) => {
                 const ativo = new Date(e.inicio) <= now && new Date(e.fim) > now;
                 return (
-                  <div key={e.id} className={`p-3 rounded-xl border transition-smooth ${ativo ? "border-primary bg-primary/10 shadow-brand" : "border-border"}`}>
+                  <div key={e.id} className={`p-3 rounded-xl border transition-smooth ${ativo ? "border-primary bg-primary/10 shadow-brand animate-pulse-ring" : "border-border"}`}>
                     {ativo && (
                       <div className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider bg-destructive text-destructive-foreground px-2 py-0.5 rounded-full mb-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> Acontecendo
+                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" /> Ao vivo
                       </div>
                     )}
                     <p className="font-semibold text-sm leading-tight line-clamp-2">{e.nome}</p>
@@ -269,10 +300,10 @@ const TVKiosk = () => {
           </div>
 
           <div className="glass-card p-4 flex items-center gap-4">
-            <div className="bg-white p-2 rounded-lg">
+            <div className="bg-white p-2 rounded-lg flex-shrink-0">
               <QRCodeSVG value={tvUrl} size={84} />
             </div>
-            <div className="text-xs">
+            <div className="text-xs min-w-0">
               <p className="font-bold mb-1">Leve no celular</p>
               <p className="text-muted-foreground leading-snug">Aponte sua câmera para abrir o ensalamento.</p>
             </div>
