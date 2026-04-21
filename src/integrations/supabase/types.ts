@@ -14,6 +14,33 @@ export type Database = {
   }
   public: {
     Tables: {
+      disciplinas: {
+        Row: {
+          carga_horaria: number | null
+          codigo: string | null
+          created_at: string
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          carga_horaria?: number | null
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          carga_horaria?: number | null
+          codigo?: string | null
+          created_at?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ensalamento: {
         Row: {
           bloco: string | null
@@ -62,6 +89,108 @@ export type Database = {
           terca?: string | null
           turno?: string
           updated_at?: string | null
+        }
+        Relationships: []
+      }
+      horarios: {
+        Row: {
+          created_at: string
+          dia_semana: string | null
+          hora_fim: string
+          hora_inicio: string
+          id: string
+          turno: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          dia_semana?: string | null
+          hora_fim: string
+          hora_inicio: string
+          id?: string
+          turno: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          dia_semana?: string | null
+          hora_fim?: string
+          hora_inicio?: string
+          id?: string
+          turno?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      professores: {
+        Row: {
+          created_at: string
+          departamento: string | null
+          email: string | null
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          departamento?: string | null
+          email?: string | null
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          departamento?: string | null
+          email?: string | null
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      salas: {
+        Row: {
+          bloco: string | null
+          capacidade: number | null
+          created_at: string
+          id: string
+          nome: string
+          updated_at: string
+        }
+        Insert: {
+          bloco?: string | null
+          capacidade?: number | null
+          created_at?: string
+          id?: string
+          nome: string
+          updated_at?: string
+        }
+        Update: {
+          bloco?: string | null
+          capacidade?: number | null
+          created_at?: string
+          id?: string
+          nome?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      settings: {
+        Row: {
+          key: string
+          updated_at: string
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          value: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          value?: Json
         }
         Relationships: []
       }
