@@ -4,18 +4,20 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { GraduationCap, Loader2 } from "lucide-react";
+import { Loader2, GraduationCap } from "lucide-react";
 import { toast } from "sonner";
+import { useSettings } from "@/contexts/SettingsContext";
 
 const Login = () => {
   const navigate = useNavigate();
+  const { settings } = useSettings();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) navigate("/admin");
+      if (data.session) navigate("/admin", { replace: true });
     });
   }, [navigate]);
 
@@ -29,26 +31,30 @@ const Login = () => {
       return;
     }
     toast.success("Bem-vindo!");
-    navigate("/admin");
+    navigate("/admin", { replace: true });
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background px-6">
-      <div className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center px-6 gradient-mesh animate-mesh">
+      <div className="w-full max-w-md animate-slide-up">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center shadow-glow">
-              <GraduationCap className="w-7 h-7 text-primary-foreground" />
-            </div>
-            <h1 className="text-4xl font-bold tracking-tight">Afya</h1>
+          <div className="inline-flex items-center gap-3 mb-4 animate-float">
+            {settings.logo_url ? (
+              <img src={settings.logo_url} alt={settings.brand_name} className="w-14 h-14 rounded-2xl object-cover shadow-glow" />
+            ) : (
+              <div className="w-14 h-14 rounded-2xl gradient-brand flex items-center justify-center shadow-brand">
+                <GraduationCap className="w-8 h-8 text-primary-foreground" />
+              </div>
+            )}
+            <h1 className="text-5xl font-bold tracking-tight gradient-text">
+              {settings.brand_name || "Afya"}
+            </h1>
           </div>
-          <p className="text-muted-foreground">Acesso Administrativo</p>
+          <p className="text-muted-foreground text-lg">{settings.unit_name}</p>
+          <p className="text-xs text-muted-foreground mt-1">Acesso Administrativo</p>
         </div>
 
-        <form
-          onSubmit={handleLogin}
-          className="bg-card rounded-2xl p-8 shadow-elegant border border-border space-y-5"
-        >
+        <form onSubmit={handleLogin} className="glass-card p-8 space-y-5">
           <div className="space-y-2">
             <Label htmlFor="email">E-mail</Label>
             <Input
@@ -59,6 +65,7 @@ const Login = () => {
               onChange={(e) => setEmail(e.target.value)}
               required
               autoComplete="email"
+              className="bg-background/60"
             />
           </div>
           <div className="space-y-2">
@@ -71,10 +78,15 @@ const Login = () => {
               onChange={(e) => setPassword(e.target.value)}
               required
               autoComplete="current-password"
+              className="bg-background/60"
             />
           </div>
-          <Button type="submit" className="w-full h-11 text-base" disabled={loading}>
-            {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Entrar"}
+          <Button
+            type="submit"
+            className="w-full h-12 text-base gradient-brand shadow-brand hover:opacity-95 transition-smooth border-0"
+            disabled={loading}
+          >
+            {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : "Entrar"}
           </Button>
         </form>
 
