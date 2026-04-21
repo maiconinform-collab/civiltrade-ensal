@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { GraduationCap, MapPin, Clock, User, Mic, Radio, AlertTriangle, Building2 } from "lucide-react";
+import { Link } from "react-router-dom";
+import { GraduationCap, MapPin, Clock, User, Mic, Radio, AlertTriangle, Building2, ArrowLeft } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { QRCodeSVG } from "qrcode.react";
 import {
@@ -134,6 +135,9 @@ const TVKiosk = () => {
       {/* Header */}
       <header className="px-4 sm:px-6 md:px-10 pt-4 sm:pt-6 pb-3 flex flex-wrap items-center justify-between gap-3 sm:gap-4">
         <div className="flex items-center gap-3 sm:gap-4 min-w-0">
+          <Link to="/" className="p-2 -ml-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 opacity-30 hover:opacity-100 transition-all text-foreground cursor-pointer" title="Voltar ao início">
+            <ArrowLeft className="w-5 h-5" />
+          </Link>
           {settings.logo_url ? (
             <img src={settings.logo_url} alt={settings.brand_name} className="w-12 h-12 sm:w-14 sm:h-14 md:w-16 md:h-16 rounded-2xl object-cover shadow-glow flex-shrink-0" />
           ) : (
