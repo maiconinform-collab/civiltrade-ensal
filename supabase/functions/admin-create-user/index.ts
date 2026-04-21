@@ -26,18 +26,20 @@ Deno.serve(async (req) => {
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: userData, error: userErr } = await userClient.auth.getUser();
-    if (userErr || !userData.user) {
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
+    if (claimsErr || !claimsData?.claims) {
       return new Response(JSON.stringify({ error: "Sessão inválida" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const userId = claimsData.claims.sub;
 
     // Cliente admin para checar role e criar usuário
     const admin = createClient(supabaseUrl, serviceKey);
     const { data: isSuper, error: roleErr } = await admin.rpc("is_super_admin", {
-      _user_id: userData.user.id,
+      _user_id: userId,
     });
     if (roleErr || !isSuper) {
       return new Response(JSON.stringify({ error: "Apenas Super Admin pode criar admins" }), {
