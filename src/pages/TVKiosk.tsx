@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { GraduationCap, Clock, MapPin, User, Calendar } from "lucide-react";
-import { format } from "date-fns";
-import { ptBR } from "date-fns/locale";
+import { GraduationCap, MapPin, Clock, User } from "lucide-react";
+import { useSettings } from "@/contexts/SettingsContext";
 
 type Ensalamento = {
   id: string;
@@ -19,218 +18,182 @@ type Ensalamento = {
   sabado: string | null;
 };
 
-type Aula = {
-  id: string;
-  sala: string;
-  bloco: string | null;
-  professor: string | null;
-  horario: string;
-  disciplina: string;
-  turno: string;
-  startMin: number;
-  endMin: number;
+const dayKey = (d: Date) => {
+  const idx = d.getDay();
+  if (idx === 0) return null;
+  return ["", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"][idx];
 };
 
-const dayKeyMap: Record<number, keyof Ensalamento | null> = {
-  0: null, // domingo
-  1: "segunda",
-  2: "terca",
-  3: "quarta",
-  4: "quinta",
-  5: "sexta",
-  6: "sabado",
-};
-
-function parseHorario(horario: string): { startMin: number; endMin: number } {
-  // Aceita "08:00-10:00", "08:00–10:00", "08:00 - 10:00"
-  const clean = horario.replace(/–|—/g, "-");
-  const [a, b] = clean.split("-").map((s) => s.trim());
-  const toMin = (t: string) => {
-    const [h, m] = t.split(":").map((n) => parseInt(n, 10));
-    return (h || 0) * 60 + (m || 0);
+const parseHorario = (h: string) => {
+  const m = h.match(/(\d{1,2}):?(\d{2})\s*[-–]\s*(\d{1,2}):?(\d{2})/);
+  if (!m) return null;
+  return {
+    start: parseInt(m[1]) * 60 + parseInt(m[2]),
+    end: parseInt(m[3]) * 60 + parseInt(m[4]),
   };
-  return { startMin: toMin(a), endMin: toMin(b || a) };
-}
+};
+
+const statusFor = (h: string, now: Date) => {
+  const p = parseHorario(h);
+  if (!p) return "scheduled";
+  const minutes = now.getHours() * 60 + now.getMinutes();
+  if (minutes >= p.start && minutes < p.end) return "now";
+  if (minutes < p.start && p.start - minutes <= 30) return "next";
+  if (minutes >= p.end) return "done";
+  return "scheduled";
+};
 
 const TVKiosk = () => {
-  const [aulas, setAulas] = useState<Aula[]>([]);
+  const { settings } = useSettings();
+  const [rows, setRows] = useState<Ensalamento[]>([]);
   const [now, setNow] = useState(new Date());
-  const [loading, setLoading] = useState(true);
+  const [tick, setTick] = useState(0);
 
-  const fetchData = async () => {
-    const { data, error } = await supabase.from("ensalamento").select("*");
-    if (error) {
-      console.error(error);
-      setLoading(false);
-      return;
-    }
-    const today = new Date();
-    const dayKey = dayKeyMap[today.getDay()];
-    if (!dayKey) {
-      setAulas([]);
-      setLoading(false);
-      return;
-    }
-    const list: Aula[] = [];
-    (data as Ensalamento[]).forEach((row) => {
-      const disciplina = row[dayKey] as string | null;
-      if (disciplina && disciplina.trim()) {
-        const { startMin, endMin } = parseHorario(row.horario);
-        list.push({
-          id: row.id,
-          sala: row.sala,
-          bloco: row.bloco,
-          professor: row.professor,
-          horario: row.horario,
-          disciplina,
-          turno: row.turno,
-          startMin,
-          endMin,
-        });
-      }
-    });
-    list.sort((a, b) => a.startMin - b.startMin);
-    setAulas(list);
-    setLoading(false);
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const load = async () => {
+    const { data } = await supabase
+      .from("ensalamento")
+      .select("*")
+      .order("turno")
+      .order("horario");
+    setRows((data as Ensalamento[]) ?? []);
+    setTick((x) => x + 1);
   };
 
   useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 5 * 60 * 1000); // 5 min
-    const clock = setInterval(() => setNow(new Date()), 30 * 1000);
+    load();
+    const channel = supabase
+      .channel("ensalamento-tv")
+      .on("postgres_changes", { event: "*", schema: "public", table: "ensalamento" }, () => load())
+      .subscribe();
+    const refresh = setInterval(load, 5 * 60 * 1000);
     return () => {
-      clearInterval(interval);
-      clearInterval(clock);
+      supabase.removeChannel(channel);
+      clearInterval(refresh);
     };
   }, []);
 
-  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const today = dayKey(now);
 
-  const getStatus = (a: Aula): "agora" | "proxima" | "encerrada" => {
-    if (nowMin >= a.startMin && nowMin < a.endMin) return "agora";
-    if (nowMin < a.startMin) return "proxima";
-    return "encerrada";
-  };
+  const sorted = useMemo(() => {
+    if (!today) return [];
+    const list = rows
+      .map((r) => ({ ...r, disciplina: (r as any)[today] as string | null }))
+      .filter((r) => r.disciplina && r.disciplina.trim().length > 0);
+    const order = (h: string) => parseHorario(h)?.start ?? 9999;
+    return list.sort((a, b) => order(a.horario) - order(b.horario));
+  }, [rows, today]);
 
-  const aulasAgora = aulas.filter((a) => getStatus(a) === "agora");
-  const aulasProximas = aulas.filter((a) => getStatus(a) === "proxima");
-  const aulasEncerradas = aulas.filter((a) => getStatus(a) === "encerrada");
+  const dateStr = now.toLocaleDateString("pt-BR", {
+    weekday: "long",
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+  const timeStr = now.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 
-  const ordenadas = [...aulasAgora, ...aulasProximas, ...aulasEncerradas];
+  const ocorrendo = sorted.filter((r) => statusFor(r.horario, now) === "now").length;
 
   return (
-    <div className="h-screen w-screen overflow-hidden bg-background flex flex-col">
-      {/* Header */}
-      <header className="flex items-center justify-between px-8 py-5 gradient-primary text-primary-foreground shrink-0">
+    <div className="h-screen w-screen overflow-hidden gradient-mesh animate-mesh relative">
+      <header className="px-10 pt-8 pb-4 flex items-center justify-between">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center">
-            <GraduationCap className="w-7 h-7" />
-          </div>
+          {settings.logo_url ? (
+            <img src={settings.logo_url} alt={settings.brand_name} className="w-16 h-16 rounded-2xl object-cover shadow-glow" />
+          ) : (
+            <div className="w-16 h-16 rounded-2xl gradient-brand flex items-center justify-center shadow-brand">
+              <GraduationCap className="w-9 h-9 text-primary-foreground" />
+            </div>
+          )}
           <div>
-            <h1 className="text-3xl font-bold tracking-tight leading-none">Afya</h1>
-            <p className="text-sm text-white/85 mt-1">Ensalamento Acadêmico</p>
+            <h1 className="text-5xl font-bold gradient-text leading-none">{settings.brand_name}</h1>
+            <p className="text-muted-foreground text-xl mt-1">{settings.unit_name}</p>
           </div>
         </div>
-        <div className="text-right">
-          <div className="text-4xl font-bold tabular-nums leading-none">
-            {format(now, "HH:mm")}
+
+        <div className="text-right glass-card px-8 py-4">
+          <div className="text-6xl font-bold tabular-nums tracking-tight gradient-text leading-none">
+            {timeStr}
           </div>
-          <div className="text-sm text-white/85 mt-1 capitalize flex items-center justify-end gap-2">
-            <Calendar className="w-4 h-4" />
-            {format(now, "EEEE, dd 'de' MMMM", { locale: ptBR })}
-          </div>
+          <div className="text-muted-foreground capitalize text-base mt-2">{dateStr}</div>
         </div>
       </header>
 
-      {/* Conteúdo */}
-      <main className="flex-1 overflow-hidden p-6">
-        {loading ? (
-          <div className="h-full flex items-center justify-center text-muted-foreground text-xl">
-            Carregando aulas...
-          </div>
-        ) : ordenadas.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center text-center">
-            <div className="w-24 h-24 rounded-full bg-primary-soft flex items-center justify-center mb-6">
-              <Calendar className="w-12 h-12 text-primary" />
+      <div className="px-10 pb-4 flex items-center gap-3">
+        <span className="glass-card px-4 py-2 text-sm font-medium">
+          <span className="text-primary font-bold">{ocorrendo}</span> aula{ocorrendo === 1 ? "" : "s"} acontecendo agora
+        </span>
+        <span className="glass-card px-4 py-2 text-sm font-medium">
+          <span className="font-bold gradient-text">{sorted.length}</span> aulas hoje
+        </span>
+      </div>
+
+      <main key={tick} className="px-10 pb-8 h-[calc(100vh-220px)] overflow-hidden animate-fade-in">
+        {sorted.length === 0 ? (
+          <div className="h-full flex items-center justify-center">
+            <div className="glass-card p-12 text-center max-w-md">
+              <GraduationCap className="w-16 h-16 mx-auto text-primary mb-4" />
+              <h2 className="text-3xl font-bold mb-2">Sem aulas hoje</h2>
+              <p className="text-muted-foreground">Aproveite seu dia! 🌸</p>
             </div>
-            <h2 className="text-3xl font-bold mb-2">Nenhuma aula agendada para hoje</h2>
-            <p className="text-muted-foreground text-lg">Aproveite o seu dia! 🎓</p>
           </div>
         ) : (
-          <div className="h-full grid auto-rows-fr gap-4" style={{
-            gridTemplateColumns: `repeat(${Math.min(Math.max(Math.ceil(Math.sqrt(ordenadas.length)), 2), 4)}, minmax(0, 1fr))`,
-          }}>
-            {ordenadas.slice(0, 12).map((a, idx) => {
-              const status = getStatus(a);
-              const isAgora = status === "agora";
-              const isEncerrada = status === "encerrada";
-
+          <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5 h-full content-start">
+            {sorted.slice(0, 16).map((r) => {
+              const st = statusFor(r.horario, now);
+              const isNow = st === "now";
+              const isNext = st === "next";
+              const isDone = st === "done";
               return (
                 <div
-                  key={a.id}
-                  className={`relative rounded-2xl p-5 flex flex-col justify-between border transition-smooth animate-slide-up ${
-                    isAgora
-                      ? "bg-card border-primary shadow-glow"
-                      : isEncerrada
-                      ? "bg-muted/50 border-border opacity-60"
-                      : "bg-card border-border shadow-elegant"
-                  }`}
-                  style={{ animationDelay: `${idx * 50}ms` }}
+                  key={r.id}
+                  className={`glass-card p-6 transition-smooth animate-slide-up ${
+                    isDone ? "opacity-50" : ""
+                  } ${isNow ? "ring-2 ring-primary shadow-brand" : ""}`}
                 >
-                  {/* Status badge */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div
-                      className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold ${
-                        isAgora
-                          ? "bg-primary text-primary-foreground"
-                          : isEncerrada
-                          ? "bg-muted text-muted-foreground"
-                          : "bg-primary-soft text-primary"
-                      }`}
-                    >
-                      {isAgora && <span className="w-2 h-2 rounded-full bg-white animate-pulse" />}
-                      {isAgora ? "ACONTECENDO AGORA" : isEncerrada ? "ENCERRADA" : "PRÓXIMA"}
+                  <div className="flex items-start justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="w-5 h-5 text-primary" />
+                      <span className="text-2xl font-bold">{r.sala}</span>
+                      {r.bloco && (
+                        <span className="text-sm text-muted-foreground">• Bloco {r.bloco}</span>
+                      )}
                     </div>
-                    <div className="flex items-center gap-1.5 text-sm font-semibold tabular-nums text-foreground/80">
-                      <Clock className="w-4 h-4" />
-                      {a.horario}
-                    </div>
-                  </div>
-
-                  {/* Disciplina */}
-                  <div className="flex-1 flex flex-col justify-center py-2">
-                    <h3 className="text-2xl font-bold leading-tight mb-2 text-balance">
-                      {a.disciplina}
-                    </h3>
-                    {a.professor && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <User className="w-4 h-4 shrink-0" />
-                        <span className="text-base truncate">{a.professor}</span>
-                      </div>
+                    {isNow && (
+                      <span className="text-xs font-bold uppercase tracking-wider text-primary-foreground bg-primary px-2 py-1 rounded-full animate-pulse-ring">
+                        Agora
+                      </span>
+                    )}
+                    {isNext && (
+                      <span className="text-xs font-bold uppercase tracking-wider text-secondary-foreground bg-secondary px-2 py-1 rounded-full">
+                        Próxima
+                      </span>
                     )}
                   </div>
 
-                  {/* Sala */}
-                  <div
-                    className={`mt-3 rounded-xl p-3 flex items-center gap-3 ${
-                      isAgora ? "gradient-primary text-primary-foreground" : "bg-muted"
-                    }`}
-                  >
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${
-                      isAgora ? "bg-white/20" : "bg-primary-soft"
-                    }`}>
-                      <MapPin className={`w-5 h-5 ${isAgora ? "text-white" : "text-primary"}`} />
+                  <h3 className="text-xl font-semibold mb-3 text-balance line-clamp-2">
+                    {(r as any).disciplina}
+                  </h3>
+
+                  <div className="space-y-2 text-sm text-muted-foreground">
+                    <div className="flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      <span className="tabular-nums font-medium">{r.horario}</span>
                     </div>
-                    <div className="min-w-0">
-                      <div className={`text-xs uppercase tracking-wide font-medium ${
-                        isAgora ? "text-white/80" : "text-muted-foreground"
-                      }`}>
-                        Sala {a.bloco ? `· Bloco ${a.bloco}` : ""}
+                    {r.professor && (
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4" />
+                        <span className="truncate">{r.professor}</span>
                       </div>
-                      <div className="text-xl font-bold leading-tight truncate">
-                        {a.sala}
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </div>
               );
@@ -239,21 +202,8 @@ const TVKiosk = () => {
         )}
       </main>
 
-      {/* Footer */}
-      <footer className="shrink-0 px-8 py-3 border-t border-border bg-card flex items-center justify-between text-sm">
-        <div className="flex items-center gap-6 text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
-            <span>{aulasAgora.length} acontecendo agora</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-2.5 h-2.5 rounded-full bg-primary/40" />
-            <span>{aulasProximas.length} próximas</span>
-          </div>
-        </div>
-        <div className="text-muted-foreground">
-          Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon</span>
-        </div>
+      <footer className="absolute bottom-3 left-0 right-0 text-center text-xs text-muted-foreground">
+        Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon</span>
       </footer>
     </div>
   );
