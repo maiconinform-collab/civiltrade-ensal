@@ -243,7 +243,7 @@ const TVKiosk = () => {
                 const isNow = st === "now";
                 const isNext = st === "next";
                 const isDone = st === "done";
-                const turnoBadge = getTurnoBadge(r.turno);
+                const turnoBadge = getTurnoBadge(r.turno, r.horario);
                 const andar = getAndar(r.sala);
                 return (
                   <div

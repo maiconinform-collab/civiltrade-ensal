@@ -62,8 +62,25 @@ export type TurnoBadge = {
   className: string;
 };
 
-export const getTurnoBadge = (turno: string): TurnoBadge => {
-  const t = turno.toLowerCase().trim();
+/**
+ * Detecta o turno automaticamente baseado no horário real da aula.
+ * Manhã: início antes das 12h
+ * Tarde: início entre 12h e 17h59
+ * Noite: início a partir das 18h
+ * Fallback: usa o campo `turno` do banco se o horário não puder ser parseado.
+ */
+export const detectTurno = (horario: string, turnoDb: string): string => {
+  const p = parseHorario(horario);
+  if (!p) return turnoDb; // fallback
+  const startHour = Math.floor(p.start / 60);
+  if (startHour < 12) return "manha";
+  if (startHour < 18) return "tarde";
+  return "noite";
+};
+
+export const getTurnoBadge = (turno: string, horario?: string): TurnoBadge => {
+  const effective = horario ? detectTurno(horario, turno) : turno;
+  const t = effective.toLowerCase().trim();
   if (t === "manha" || t === "manhã") {
     return { label: "Manhã", emoji: "☀️", className: "badge-manha" };
   }
