@@ -21,6 +21,7 @@ export type Database = {
           created_at: string
           id: string
           nome: string
+          semestre: string | null
           updated_at: string
         }
         Insert: {
@@ -29,6 +30,7 @@ export type Database = {
           created_at?: string
           id?: string
           nome: string
+          semestre?: string | null
           updated_at?: string
         }
         Update: {
@@ -37,6 +39,7 @@ export type Database = {
           created_at?: string
           id?: string
           nome?: string
+          semestre?: string | null
           updated_at?: string
         }
         Relationships: []
@@ -47,6 +50,7 @@ export type Database = {
           created_at: string | null
           horario: string
           id: string
+          observacoes: string | null
           professor: string | null
           quarta: string | null
           quinta: string | null
@@ -63,6 +67,7 @@ export type Database = {
           created_at?: string | null
           horario: string
           id?: string
+          observacoes?: string | null
           professor?: string | null
           quarta?: string | null
           quinta?: string | null
@@ -79,6 +84,7 @@ export type Database = {
           created_at?: string | null
           horario?: string
           id?: string
+          observacoes?: string | null
           professor?: string | null
           quarta?: string | null
           quinta?: string | null
@@ -127,6 +133,8 @@ export type Database = {
           created_at: string
           departamento: string | null
           email: string | null
+          especialidade: string | null
+          foto_url: string | null
           id: string
           nome: string
           updated_at: string
@@ -135,6 +143,8 @@ export type Database = {
           created_at?: string
           departamento?: string | null
           email?: string | null
+          especialidade?: string | null
+          foto_url?: string | null
           id?: string
           nome: string
           updated_at?: string
@@ -143,6 +153,8 @@ export type Database = {
           created_at?: string
           departamento?: string | null
           email?: string | null
+          especialidade?: string | null
+          foto_url?: string | null
           id?: string
           nome?: string
           updated_at?: string
