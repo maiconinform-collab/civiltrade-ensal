@@ -60,6 +60,8 @@ const TVKiosk = () => {
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [avisos, setAvisos] = useState<Aviso[]>([]);
   const [now, setNow] = useState(new Date());
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [mobileTab, setMobileTab] = useState<"ensalamento" | "auditorio">("ensalamento");
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -67,14 +69,24 @@ const TVKiosk = () => {
   }, []);
 
   const load = async () => {
-    const [ens, ev, av] = await Promise.all([
-      supabase.from("ensalamento").select("*").order("turno").order("horario"),
-      supabase.from("auditorio_eventos").select("*").gte("fim", new Date().toISOString()).order("inicio").limit(5),
-      supabase.from("avisos").select("*").eq("ativo", true).order("ordem"),
-    ]);
-    setRows((ens.data as Ensalamento[]) ?? []);
-    setEventos((ev.data as Evento[]) ?? []);
-    setAvisos((av.data as Aviso[]) ?? []);
+    try {
+      const [ens, ev, av] = await Promise.all([
+        supabase.from("ensalamento").select("*").order("turno").order("horario"),
+        supabase.from("auditorio_eventos").select("*").gte("fim", new Date().toISOString()).order("inicio").limit(10),
+        supabase.from("avisos").select("*").eq("ativo", true).order("ordem"),
+      ]);
+      const errs = [ens.error, ev.error, av.error].filter(Boolean);
+      if (errs.length) {
+        setLoadError(errs.map((e) => e!.message).join(" • "));
+      } else {
+        setLoadError(null);
+      }
+      setRows((ens.data as Ensalamento[]) ?? []);
+      setEventos((ev.data as Evento[]) ?? []);
+      setAvisos((av.data as Aviso[]) ?? []);
+    } catch (e: any) {
+      setLoadError(e?.message ?? "Erro desconhecido ao carregar dados");
+    }
   };
 
   useEffect(() => {
