@@ -43,6 +43,7 @@ const TVKiosk = () => {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<"ensalamento" | "auditorio">("ensalamento");
   const [filter, setFilter] = useState<FilterMode>("todas");
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -51,11 +52,17 @@ const TVKiosk = () => {
 
   const load = async () => {
     try {
+      const cb = `cb-${Date.now()}`; // Cache buster
       const [ens, ev, av] = await Promise.all([
-        supabase.from("ensalamento").select("*").order("turno").order("horario"),
-        supabase.from("auditorio_eventos").select("*").gte("fim", new Date().toISOString()).order("inicio").limit(10),
-        supabase.from("avisos").select("*").eq("ativo", true).order("ordem"),
+        supabase.from("ensalamento").select("*").neq("id", cb).order("turno").order("horario"),
+        supabase.from("auditorio_eventos").select("*").neq("id", cb).gte("fim", new Date().toISOString()).order("inicio").limit(10),
+        supabase.from("avisos").select("*").neq("id", cb).eq("ativo", true).order("ordem"),
       ]);
+      
+      console.log('Dados recebidos (Ensalamento):', ens.data);
+      console.log('Dados recebidos (Auditório):', ev.data);
+      console.log('Dados recebidos (Avisos):', av.data);
+
       const errs = [ens.error, ev.error, av.error].filter(Boolean);
       if (errs.length) {
         setLoadError(errs.map((e) => e!.message).join(" • "));
@@ -67,6 +74,8 @@ const TVKiosk = () => {
       setAvisos((av.data as Aviso[]) ?? []);
     } catch (e: any) {
       setLoadError(e?.message ?? "Erro desconhecido ao carregar dados");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -131,9 +140,9 @@ const TVKiosk = () => {
   const fmtEvento = (iso: string) => new Date(iso).toLocaleString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden gradient-mesh animate-mesh relative flex flex-col">
+    <div className="h-screen w-full overflow-hidden gradient-mesh animate-mesh relative flex flex-col">
       {/* Header */}
-      <header className="px-4 sm:px-6 md:px-10 pt-4 sm:pt-6 pb-3 flex flex-wrap items-center justify-between gap-3 sm:gap-4">
+      <header className="px-4 sm:px-6 md:px-10 pt-3 sm:pt-5 pb-2 flex flex-wrap items-center justify-between gap-3 sm:gap-4 shrink-0">
         <div className="flex items-center gap-3 sm:gap-4 min-w-0">
           <Link to="/" className="p-2 -ml-2 rounded-full hover:bg-black/5 dark:hover:bg-white/5 opacity-30 hover:opacity-100 transition-all text-foreground cursor-pointer" title="Voltar ao início">
             <ArrowLeft className="w-5 h-5" />
@@ -160,7 +169,7 @@ const TVKiosk = () => {
       </header>
 
       {/* Status badges */}
-      <div className="px-4 sm:px-6 md:px-10 pb-2 flex flex-wrap items-center gap-2 md:gap-3">
+      <div className="px-4 sm:px-6 md:px-10 pb-2 flex flex-wrap items-center gap-2 md:gap-3 shrink-0">
         <span className="glass-card px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-medium inline-flex items-center gap-2">
           <Radio className="w-3 h-3 md:w-4 md:h-4 text-destructive animate-pulse" />
           <span className="text-primary font-bold">{ocorrendo}</span> ao vivo agora
@@ -174,7 +183,7 @@ const TVKiosk = () => {
       </div>
 
       {/* Filtros dinâmicos */}
-      <div className="px-4 sm:px-6 md:px-10 pb-3 flex flex-wrap items-center gap-2">
+      <div className="px-4 sm:px-6 md:px-10 pb-2 flex flex-wrap items-center gap-2 shrink-0">
         <button
           onClick={() => setFilter("todas")}
           className={`filter-chip ${filter === "todas" ? "active" : ""}`}
@@ -230,9 +239,23 @@ const TVKiosk = () => {
       </div>
 
       {/* Main grid + sidebar */}
-      <main className="px-4 sm:px-6 md:px-10 pb-3 flex-1 grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-4 md:gap-5 min-h-0">
+      <main className="px-4 sm:px-6 md:px-10 pb-2 flex-1 grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-3 md:gap-4 min-h-0">
         <section className={`overflow-hidden ${mobileTab === "auditorio" ? "hidden xl:block" : ""}`}>
-          {displayed.length === 0 ? (
+          {isLoading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5 h-full content-start overflow-y-auto pr-1">
+              {Array.from({ length: 9 }).map((_, i) => (
+                <div key={i} className="glass-card p-4 sm:p-5 md:p-6 animate-pulse">
+                  <div className="h-6 w-24 bg-muted/20 rounded-md mb-4" />
+                  <div className="h-8 w-1/2 bg-muted/20 rounded-md mb-4" />
+                  <div className="h-6 w-3/4 bg-muted/20 rounded-md mb-4" />
+                  <div className="space-y-2">
+                    <div className="h-4 w-20 bg-muted/20 rounded-md" />
+                    <div className="h-4 w-32 bg-muted/20 rounded-md" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : displayed.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <div className="glass-card p-8 md:p-12 text-center max-w-md">
                 <GraduationCap className="w-16 h-16 mx-auto text-primary mb-4" />
@@ -256,7 +279,7 @@ const TVKiosk = () => {
                 return (
                   <div
                     key={r.id}
-                    className={`glass-card p-4 sm:p-5 md:p-6 transition-smooth animate-slide-up cursor-pointer hover:-translate-y-1 hover:border-primary hover:shadow-brand relative ${
+                    className={`glass-card p-3 sm:p-4 md:p-5 transition-smooth animate-slide-up cursor-pointer hover:-translate-y-1 hover:border-primary hover:shadow-brand relative ${
                       isDone ? "opacity-50" : ""
                     } ${isNow ? "ring-4 ring-primary shadow-brand bg-primary/5 animate-pulse-ring" : ""}`}
                   >
@@ -351,7 +374,7 @@ const TVKiosk = () => {
       </main>
 
       {/* Marquee */}
-      <div className="bg-primary/95 text-primary-foreground py-2.5 overflow-hidden relative">
+      <div className="bg-primary/95 text-primary-foreground py-2 overflow-hidden relative shrink-0">
         <div className="flex items-center gap-3 whitespace-nowrap animate-marquee">
           {Array.from({ length: 2 }).map((_, i) => (
             <span key={i} className="inline-flex items-center gap-3 text-sm md:text-base font-medium px-6">
@@ -362,7 +385,7 @@ const TVKiosk = () => {
       </div>
 
       {/* Footer */}
-      <footer className="px-4 sm:px-6 md:px-10 py-2 flex flex-wrap items-center justify-between gap-2 text-[10px] sm:text-xs text-muted-foreground border-t border-border">
+      <footer className="px-4 sm:px-6 md:px-10 py-2 flex flex-wrap items-center justify-between gap-2 text-[10px] sm:text-xs text-muted-foreground border-t border-border shrink-0 mt-auto bg-background/50 backdrop-blur-md sticky bottom-0 z-10">
         <div className="flex items-center gap-2">
           <img src="/avatar.png.PNG" alt="Maicon Show" className="w-5 h-5 md:w-6 md:h-6 rounded-full border border-primary/20 shadow-sm object-cover" />
           <span>Desenvolvido por <span className="font-semibold text-foreground">Maicon Show</span> 👨🏽‍💻</span>
