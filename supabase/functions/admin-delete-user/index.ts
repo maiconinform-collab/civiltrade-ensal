@@ -25,17 +25,19 @@ Deno.serve(async (req) => {
     const userClient = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
-    const { data: userData } = await userClient.auth.getUser();
-    if (!userData.user) {
+    const token = authHeader.replace("Bearer ", "");
+    const { data: claimsData, error: claimsErr } = await userClient.auth.getClaims(token);
+    if (claimsErr || !claimsData?.claims) {
       return new Response(JSON.stringify({ error: "Sessão inválida" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const userId = claimsData.claims.sub;
 
     const admin = createClient(supabaseUrl, serviceKey);
     const { data: isSuper } = await admin.rpc("is_super_admin", {
-      _user_id: userData.user.id,
+      _user_id: userId,
     });
     if (!isSuper) {
       return new Response(JSON.stringify({ error: "Apenas Super Admin pode remover admins" }), {
@@ -51,7 +53,7 @@ Deno.serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
-    if (user_id === userData.user.id) {
+    if (user_id === userId) {
       return new Response(JSON.stringify({ error: "Você não pode remover você mesmo" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
