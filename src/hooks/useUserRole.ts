@@ -14,16 +14,11 @@ export const useUserRole = () => {
 
     const load = async (uid: string) => {
       const { data } = await supabase
-        .from("profiles")
+        .from("user_roles")
         .select("role")
-        .eq("id", uid)
-        .single();
+        .eq("user_id", uid);
       if (!active) return;
-      if (data && data.role) {
-        setRoles([data.role as AppRole]);
-      } else {
-        setRoles([]);
-      }
+      setRoles(((data ?? []) as { role: AppRole }[]).map((r) => r.role));
       setLoading(false);
     };
 
