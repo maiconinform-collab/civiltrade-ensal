@@ -24,19 +24,21 @@ export type FieldDef = {
   placeholder?: string;
 };
 
-type Props<Row> = {
+type AnyRow = { id: string; [k: string]: any };
+
+type Props = {
   title: string;
   description?: string;
   table: "professores" | "disciplinas" | "salas" | "horarios";
   fields: FieldDef[];
-  columns: { key: keyof Row & string; label: string; render?: (v: any) => ReactNode }[];
+  columns: { key: string; label: string; render?: (v: any) => ReactNode }[];
   emptyForm: Record<string, any>;
 };
 
-export function CrudTab<Row extends { id: string }>({
+export function CrudTab({
   title, description, table, fields, columns, emptyForm,
-}: Props<Row>) {
-  const [rows, setRows] = useState<Row[]>([]);
+}: Props) {
+  const [rows, setRows] = useState<AnyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Row | null>(null);
