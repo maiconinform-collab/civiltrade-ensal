@@ -52,11 +52,10 @@ const TVKiosk = () => {
 
   const load = async () => {
     try {
-      const cb = `cb-${Date.now()}`; // Cache buster
       const [ens, ev, av] = await Promise.all([
-        supabase.from("ensalamento").select("*").neq("id", cb).order("turno").order("horario"),
-        supabase.from("auditorio_eventos").select("*").neq("id", cb).gte("fim", new Date().toISOString()).order("inicio").limit(10),
-        supabase.from("avisos").select("*").neq("id", cb).eq("ativo", true).order("ordem"),
+        supabase.from("ensalamento").select("*").order("turno").order("horario"),
+        supabase.from("auditorio_eventos").select("*").gte("fim", new Date().toISOString()).order("inicio").limit(10),
+        supabase.from("avisos").select("*").eq("ativo", true).order("ordem"),
       ]);
       
       console.log('Dados recebidos (Ensalamento):', ens.data);
