@@ -125,9 +125,12 @@ const Login = () => {
           </a>
         </div>
 
-        <p className="text-center text-sm text-muted-foreground mt-6">
-          Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon</span> 👨🏽‍💻
-        </p>
+        <div className="flex items-center justify-center gap-3 mt-6">
+          <img src="/avatar.png.PNG" alt="Maicon Show" className="w-8 h-8 rounded-full border border-primary/20 shadow-sm object-cover" />
+          <p className="text-center text-sm text-muted-foreground">
+            Desenvolvido por <span className="font-semibold text-foreground">Maicon Show</span> 👨🏽‍💻
+          </p>
+        </div>
       </div>
     </div>
   );
