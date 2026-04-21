@@ -41,7 +41,7 @@ export function CrudTab({
   const [rows, setRows] = useState<AnyRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
-  const [editing, setEditing] = useState<Row | null>(null);
+  const [editing, setEditing] = useState<AnyRow | null>(null);
   const [form, setForm] = useState<Record<string, any>>(emptyForm);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -50,17 +50,17 @@ export function CrudTab({
     setLoading(true);
     const { data, error } = await supabase.from(table).select("*").order("created_at", { ascending: false });
     if (error) toast.error("Erro ao carregar", { description: error.message });
-    setRows((data as Row[]) ?? []);
+    setRows(((data as unknown) as AnyRow[]) ?? []);
     setLoading(false);
   };
 
   useEffect(() => { load(); }, [table]); // eslint-disable-line
 
   const openNew = () => { setEditing(null); setForm(emptyForm); setOpen(true); };
-  const openEdit = (r: Row) => {
+  const openEdit = (r: AnyRow) => {
     setEditing(r);
     const f: Record<string, any> = { ...emptyForm };
-    fields.forEach((fd) => { f[fd.key] = (r as any)[fd.key] ?? ""; });
+    fields.forEach((fd) => { f[fd.key] = r[fd.key] ?? ""; });
     setForm(f); setOpen(true);
   };
 
@@ -78,9 +78,10 @@ export function CrudTab({
       else if (fd.type === "number") payload[fd.key] = Number(v);
       else payload[fd.key] = v;
     });
+    const tbl = supabase.from(table) as any;
     const { error } = editing
-      ? await supabase.from(table).update(payload).eq("id", editing.id)
-      : await supabase.from(table).insert(payload);
+      ? await tbl.update(payload).eq("id", editing.id)
+      : await tbl.insert(payload);
     setSaving(false);
     if (error) { toast.error("Erro ao salvar", { description: error.message }); return; }
     toast.success(editing ? "Atualizado" : "Criado");
