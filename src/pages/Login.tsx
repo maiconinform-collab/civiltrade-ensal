@@ -90,6 +90,15 @@ const Login = () => {
           </Button>
         </form>
 
+        <div className="mt-6 text-center">
+          <a
+            href="/"
+            className="text-sm text-muted-foreground hover:text-primary transition-smooth inline-flex items-center gap-1"
+          >
+            ← Voltar para o Início
+          </a>
+        </div>
+
         <p className="text-center text-sm text-muted-foreground mt-6">
           Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon</span>
         </p>

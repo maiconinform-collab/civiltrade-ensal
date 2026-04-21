@@ -155,7 +155,7 @@ const TVKiosk = () => {
               return (
                 <div
                   key={r.id}
-                  className={`glass-card p-6 transition-smooth animate-slide-up ${
+                  className={`glass-card p-6 transition-smooth animate-slide-up cursor-pointer hover:-translate-y-1 hover:border-primary hover:shadow-brand ${
                     isDone ? "opacity-50" : ""
                   } ${isNow ? "ring-2 ring-primary shadow-brand" : ""}`}
                 >
@@ -202,8 +202,16 @@ const TVKiosk = () => {
         )}
       </main>
 
-      <footer className="absolute bottom-3 left-0 right-0 text-center text-xs text-muted-foreground">
-        Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon</span>
+      <footer className="absolute bottom-3 left-0 right-0 px-10 flex items-center justify-between text-xs text-muted-foreground">
+        <span>
+          Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon</span>
+        </span>
+        <a
+          href="/login"
+          className="glass px-3 py-1.5 rounded-full hover:text-primary hover:border-primary/40 transition-smooth inline-flex items-center gap-1.5"
+        >
+          🔒 Painel Administrativo
+        </a>
       </footer>
     </div>
   );
