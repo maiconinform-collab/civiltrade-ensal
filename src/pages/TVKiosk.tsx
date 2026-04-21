@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { GraduationCap, MapPin, Clock, User, Mic, Radio } from "lucide-react";
+import { GraduationCap, MapPin, Clock, User, Mic, Radio, AlertTriangle } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { QRCodeSVG } from "qrcode.react";
 
