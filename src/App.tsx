@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SettingsProvider } from "@/contexts/SettingsContext";
+import { Analytics } from "@vercel/analytics/react";
 import Index from "./pages/Index";
 import TVKiosk from "./pages/TVKiosk";
 import Login from "./pages/Login";
@@ -27,6 +28,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
+        <Analytics />
       </SettingsProvider>
     </TooltipProvider>
   </QueryClientProvider>
