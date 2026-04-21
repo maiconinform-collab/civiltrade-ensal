@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { GraduationCap, MapPin, Clock, User, Mic, Radio, AlertTriangle } from "lucide-react";
+import { GraduationCap, MapPin, Clock, User, Mic, Radio, AlertTriangle, Building2 } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { QRCodeSVG } from "qrcode.react";
+import {
+  parseHorario, statusFor, dayKey, getAndar, getAndarNumero,
+  getTurnoBadge, salaToNumber, type Status,
+} from "@/lib/ensalamento-utils";
 
 type Ensalamento = {
   id: string;
@@ -11,6 +15,7 @@ type Ensalamento = {
   turno: string;
   horario: string;
   professor: string | null;
+  sort_order: number;
   segunda: string | null;
   terca: string | null;
   quarta: string | null;
@@ -26,33 +31,7 @@ type Evento = {
 
 type Aviso = { id: string; texto: string; ativo: boolean; ordem: number };
 
-const dayKey = (d: Date) => {
-  const idx = d.getDay();
-  if (idx === 0) return null;
-  return ["", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"][idx];
-};
-
-const parseHorario = (h: string) => {
-  const m = h.match(/(\d{1,2}):?(\d{2})\s*[-–]\s*(\d{1,2}):?(\d{2})/);
-  if (!m) return null;
-  return {
-    start: parseInt(m[1]) * 60 + parseInt(m[2]),
-    end: parseInt(m[3]) * 60 + parseInt(m[4]),
-  };
-};
-
-type Status = "now" | "next" | "scheduled" | "done";
-const statusFor = (h: string, now: Date): Status => {
-  const p = parseHorario(h);
-  if (!p) return "scheduled";
-  const minutes = now.getHours() * 60 + now.getMinutes();
-  if (minutes >= p.start && minutes < p.end) return "now";
-  if (minutes < p.start) return p.start - minutes <= 60 ? "next" : "scheduled";
-  return "done";
-};
-
-// Sort priority: now → next → scheduled → done; tie-breaker by start time
-const statusRank: Record<Status, number> = { now: 0, next: 1, scheduled: 2, done: 3 };
+type FilterMode = "todas" | "ao-vivo" | number; // number = andar
 
 const TVKiosk = () => {
   const { settings } = useSettings();
@@ -62,6 +41,7 @@ const TVKiosk = () => {
   const [now, setNow] = useState(new Date());
   const [loadError, setLoadError] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<"ensalamento" | "auditorio">("ensalamento");
+  const [filter, setFilter] = useState<FilterMode>("todas");
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
@@ -103,18 +83,35 @@ const TVKiosk = () => {
 
   const today = dayKey(now);
 
+  // Sorted by sort_order, then by room number (ascending)
   const sorted = useMemo(() => {
     if (!today) return [];
     const list = rows
       .map((r) => ({ ...r, disciplina: (r as any)[today] as string | null }))
       .filter((r) => r.disciplina && r.disciplina.trim().length > 0);
     return list.sort((a, b) => {
-      const sa = statusFor(a.horario, now);
-      const sb = statusFor(b.horario, now);
-      if (sa !== sb) return statusRank[sa] - statusRank[sb];
-      return (parseHorario(a.horario)?.start ?? 9999) - (parseHorario(b.horario)?.start ?? 9999);
+      if (a.sort_order !== b.sort_order) return (a.sort_order || 0) - (b.sort_order || 0);
+      return salaToNumber(a.sala) - salaToNumber(b.sala);
     });
   }, [rows, today, now]);
+
+  // Available floors for filter chips
+  const availableFloors = useMemo(() => {
+    const floors = new Set<number>();
+    sorted.forEach((r) => {
+      const n = getAndarNumero(r.sala);
+      if (n) floors.add(n);
+    });
+    return Array.from(floors).sort((a, b) => a - b);
+  }, [sorted]);
+
+  // Apply filters
+  const displayed = useMemo(() => {
+    if (filter === "todas") return sorted;
+    if (filter === "ao-vivo") return sorted.filter((r) => statusFor(r.horario, now) === "now");
+    // filter is a floor number
+    return sorted.filter((r) => getAndarNumero(r.sala) === filter);
+  }, [sorted, filter, now]);
 
   const dateStr = now.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
   const timeStr = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -159,7 +156,7 @@ const TVKiosk = () => {
       </header>
 
       {/* Status badges */}
-      <div className="px-4 sm:px-6 md:px-10 pb-3 flex flex-wrap items-center gap-2 md:gap-3">
+      <div className="px-4 sm:px-6 md:px-10 pb-2 flex flex-wrap items-center gap-2 md:gap-3">
         <span className="glass-card px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-medium inline-flex items-center gap-2">
           <Radio className="w-3 h-3 md:w-4 md:h-4 text-destructive animate-pulse" />
           <span className="text-primary font-bold">{ocorrendo}</span> ao vivo agora
@@ -170,6 +167,31 @@ const TVKiosk = () => {
         <span className="glass-card px-3 md:px-4 py-1.5 md:py-2 text-xs md:text-sm font-medium">
           <span className="font-bold gradient-text">{sorted.length}</span> aulas hoje
         </span>
+      </div>
+
+      {/* Filtros dinâmicos */}
+      <div className="px-4 sm:px-6 md:px-10 pb-3 flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => setFilter("todas")}
+          className={`filter-chip ${filter === "todas" ? "active" : ""}`}
+        >
+          📋 Todas
+        </button>
+        <button
+          onClick={() => setFilter("ao-vivo")}
+          className={`filter-chip ${filter === "ao-vivo" ? "active" : ""}`}
+        >
+          <span className="live-dot" /> Ao Vivo
+        </button>
+        {availableFloors.map((floor) => (
+          <button
+            key={floor}
+            onClick={() => setFilter(filter === floor ? "todas" : floor)}
+            className={`filter-chip ${filter === floor ? "active" : ""}`}
+          >
+            <Building2 className="w-3 h-3" /> {floor}º Andar
+          </button>
+        ))}
       </div>
 
       {/* Error banner */}
@@ -191,7 +213,7 @@ const TVKiosk = () => {
             mobileTab === "ensalamento" ? "gradient-brand text-primary-foreground shadow-brand" : "glass-card text-muted-foreground"
           }`}
         >
-          Ensalamento ({sorted.length})
+          Ensalamento ({displayed.length})
         </button>
         <button
           onClick={() => setMobileTab("auditorio")}
@@ -206,21 +228,27 @@ const TVKiosk = () => {
       {/* Main grid + sidebar */}
       <main className="px-4 sm:px-6 md:px-10 pb-3 flex-1 grid grid-cols-1 xl:grid-cols-[1fr_340px] gap-4 md:gap-5 min-h-0">
         <section className={`overflow-hidden ${mobileTab === "auditorio" ? "hidden xl:block" : ""}`}>
-          {sorted.length === 0 ? (
+          {displayed.length === 0 ? (
             <div className="h-full flex items-center justify-center">
               <div className="glass-card p-8 md:p-12 text-center max-w-md">
                 <GraduationCap className="w-16 h-16 mx-auto text-primary mb-4" />
-                <h2 className="text-2xl md:text-3xl font-bold mb-2">Nenhuma aula em andamento</h2>
-                <p className="text-muted-foreground">Aproveite seu dia! 🌸</p>
+                <h2 className="text-2xl md:text-3xl font-bold mb-2">
+                  {filter === "ao-vivo" ? "Nenhuma aula ao vivo agora" : filter !== "todas" ? `Nenhuma aula no ${filter}º Andar` : "Nenhuma aula em andamento"}
+                </h2>
+                <p className="text-muted-foreground">
+                  {filter !== "todas" ? "Tente outro filtro ou aguarde o próximo horário." : "Aproveite seu dia! 🌸"}
+                </p>
               </div>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5 h-full content-start overflow-y-auto pr-1">
-              {sorted.slice(0, 18).map((r) => {
+              {displayed.slice(0, 18).map((r) => {
                 const st = statusFor(r.horario, now);
                 const isNow = st === "now";
                 const isNext = st === "next";
                 const isDone = st === "done";
+                const turnoBadge = getTurnoBadge(r.turno, r.horario);
+                const andar = getAndar(r.sala);
                 return (
                   <div
                     key={r.id}
@@ -228,23 +256,30 @@ const TVKiosk = () => {
                       isDone ? "opacity-50" : ""
                     } ${isNow ? "ring-4 ring-primary shadow-brand bg-primary/5 animate-pulse-ring" : ""}`}
                   >
-                    {isNow && (
-                      <div className="absolute -top-3 left-4 inline-flex items-center gap-1.5 bg-destructive text-destructive-foreground text-[10px] md:text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full shadow-lg">
-                        <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
-                        Ao vivo
-                      </div>
-                    )}
-                    {isNext && (
-                      <div className="absolute -top-3 left-4 inline-flex items-center gap-1.5 bg-secondary text-secondary-foreground text-[10px] md:text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full">
-                        Próxima
-                      </div>
-                    )}
+                    {/* Badge de Turno (sempre visível) */}
+                    <div className="flex items-center gap-2 mb-3">
+                      <span className={`badge-turno ${turnoBadge.className}`}>
+                        {turnoBadge.emoji} {turnoBadge.label}
+                      </span>
+                      {isNow && (
+                        <span className="inline-flex items-center gap-1.5 bg-destructive text-destructive-foreground text-[10px] md:text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg">
+                          <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                          Ao vivo
+                        </span>
+                      )}
+                      {isNext && (
+                        <span className="inline-flex items-center gap-1.5 bg-secondary text-secondary-foreground text-[10px] md:text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full">
+                          Próxima
+                        </span>
+                      )}
+                    </div>
 
-                    <div className="flex items-start justify-between mb-3 mt-1 gap-2">
+                    <div className="flex items-start justify-between mb-3 gap-2">
                       <div className="flex items-center gap-2 min-w-0 flex-wrap">
                         <MapPin className="w-5 h-5 text-primary flex-shrink-0" />
                         <span className="text-lg sm:text-xl md:text-2xl font-bold truncate">{r.sala}</span>
                         {r.bloco && <span className="text-xs md:text-sm text-muted-foreground">• Bloco {r.bloco}</span>}
+                        {andar && <span className="andar-badge">{andar}</span>}
                       </div>
                     </div>
 
@@ -324,7 +359,7 @@ const TVKiosk = () => {
 
       {/* Footer */}
       <footer className="px-4 sm:px-6 md:px-10 py-2 flex flex-wrap items-center justify-between gap-2 text-[10px] sm:text-xs text-muted-foreground border-t border-border">
-        <span>Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon</span></span>
+        <span>Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon</span> 👨🏽‍💻</span>
         <a href="/login" className="glass px-3 py-1.5 rounded-full hover:text-primary hover:border-primary/40 transition-smooth inline-flex items-center gap-1.5">
           🔒 Painel Administrativo
         </a>

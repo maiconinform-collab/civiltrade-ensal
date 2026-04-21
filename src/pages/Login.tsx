@@ -34,6 +34,23 @@ const Login = () => {
     navigate("/admin", { replace: true });
   };
 
+  const handleResetPassword = async () => {
+    if (!email) {
+      toast.error("Por favor, digite seu e-mail no campo acima primeiro.");
+      return;
+    }
+    setLoading(true);
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + "/admin",
+    });
+    setLoading(false);
+    if (error) {
+      toast.error("Erro ao enviar e-mail", { description: error.message });
+      return;
+    }
+    toast.success("E-mail de recuperação enviado! Verifique sua caixa de entrada.");
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center px-6 gradient-mesh animate-mesh">
       <div className="w-full max-w-md animate-slide-up">
@@ -69,7 +86,16 @@ const Login = () => {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="password">Senha</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password">Senha</Label>
+              <button 
+                type="button" 
+                onClick={handleResetPassword}
+                className="text-xs text-primary hover:underline"
+              >
+                Esqueci a senha
+              </button>
+            </div>
             <Input
               id="password"
               type="password"
@@ -100,7 +126,7 @@ const Login = () => {
         </div>
 
         <p className="text-center text-sm text-muted-foreground mt-6">
-          Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon</span>
+          Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon</span> 👨🏽‍💻
         </p>
       </div>
     </div>

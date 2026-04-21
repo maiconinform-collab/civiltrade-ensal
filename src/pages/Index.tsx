@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Monitor, Settings, GraduationCap, Sparkles } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
+import { FeedbackModal } from "@/components/FeedbackModal";
 
 const Index = () => {
   const { settings } = useSettings();
@@ -62,8 +63,9 @@ const Index = () => {
       </main>
 
       <footer className="py-6 text-center text-sm text-muted-foreground">
-        Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon</span>
+        Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon</span> 👨🏽‍💻
       </footer>
+      <FeedbackModal />
     </div>
   );
 };
