@@ -323,7 +323,7 @@ const TVKiosk = () => {
       </div>
 
       {/* Footer */}
-      <footer className="px-6 md:px-10 py-2 flex items-center justify-between text-xs text-muted-foreground border-t border-border">
+      <footer className="px-4 sm:px-6 md:px-10 py-2 flex flex-wrap items-center justify-between gap-2 text-[10px] sm:text-xs text-muted-foreground border-t border-border">
         <span>Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon</span></span>
         <a href="/login" className="glass px-3 py-1.5 rounded-full hover:text-primary hover:border-primary/40 transition-smooth inline-flex items-center gap-1.5">
           🔒 Painel Administrativo
