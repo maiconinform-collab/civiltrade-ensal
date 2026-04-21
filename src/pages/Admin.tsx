@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import {
-  LayoutDashboard, CalendarDays, Users, BookOpen, MapPin, Clock,
+  LayoutDashboard, CalendarDays, Users, BookOpen, MapPin, Clock, Mic, Megaphone, User as UserIcon,
   Settings as SettingsIcon, ShieldCheck, LogOut, Monitor, GraduationCap, Menu, X,
 } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
@@ -14,13 +14,16 @@ import ProfessoresTab from "@/components/admin/ProfessoresTab";
 import DisciplinasTab from "@/components/admin/DisciplinasTab";
 import SalasTab from "@/components/admin/SalasTab";
 import HorariosTab from "@/components/admin/HorariosTab";
+import AuditorioTab from "@/components/admin/AuditorioTab";
+import AvisosTab from "@/components/admin/AvisosTab";
+import PerfilTab from "@/components/admin/PerfilTab";
 import AdminsTab from "@/components/admin/AdminsTab";
 import SettingsTab from "@/components/admin/SettingsTab";
 import { Loader2 } from "lucide-react";
 
 type TabKey =
-  | "dashboard" | "ensalamento" | "professores" | "disciplinas"
-  | "salas" | "horarios" | "admins" | "settings";
+  | "dashboard" | "ensalamento" | "auditorio" | "avisos" | "professores" | "disciplinas"
+  | "salas" | "horarios" | "perfil" | "admins" | "settings";
 
 const Admin = () => {
   const navigate = useNavigate();
@@ -68,10 +71,13 @@ const Admin = () => {
   const items: { key: TabKey; label: string; icon: any; superOnly?: boolean }[] = [
     { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { key: "ensalamento", label: "Ensalamento", icon: CalendarDays },
+    { key: "auditorio", label: "Auditório", icon: Mic },
+    { key: "avisos", label: "Avisos", icon: Megaphone },
     { key: "professores", label: "Professores", icon: Users },
     { key: "disciplinas", label: "Disciplinas", icon: BookOpen },
     { key: "salas", label: "Salas", icon: MapPin },
     { key: "horarios", label: "Horários", icon: Clock },
+    { key: "perfil", label: "Meu Perfil", icon: UserIcon },
     { key: "admins", label: "Administradores", icon: ShieldCheck, superOnly: true },
     { key: "settings", label: "Configurações", icon: SettingsIcon, superOnly: true },
   ];
@@ -173,10 +179,13 @@ const Admin = () => {
           </div>
           {tab === "dashboard" && <DashboardTab />}
           {tab === "ensalamento" && <EnsalamentoTab />}
+          {tab === "auditorio" && <AuditorioTab />}
+          {tab === "avisos" && <AvisosTab />}
           {tab === "professores" && <ProfessoresTab />}
           {tab === "disciplinas" && <DisciplinasTab />}
           {tab === "salas" && <SalasTab />}
           {tab === "horarios" && <HorariosTab />}
+          {tab === "perfil" && <PerfilTab />}
           {tab === "admins" && isSuperAdmin && <AdminsTab currentUserId={userId} />}
           {tab === "settings" && isSuperAdmin && <SettingsTab />}
         </main>
