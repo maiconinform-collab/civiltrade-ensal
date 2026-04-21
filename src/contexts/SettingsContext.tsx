@@ -11,7 +11,7 @@ type Settings = {
 
 const DEFAULTS: Settings = {
   brand_name: "Afya",
-  unit_name: "Unidade Principal",
+  unit_name: "Ensalamento Civil Trade",
   logo_url: "",
   primary_color: "336 78% 56%",
   secondary_color: "280 65% 55%",

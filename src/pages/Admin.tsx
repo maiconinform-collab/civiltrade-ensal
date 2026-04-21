@@ -164,6 +164,13 @@ const Admin = () => {
 
         {/* Content */}
         <main className="flex-1 min-w-0 p-4 md:p-8">
+          <div className="mb-4 flex justify-end">
+            <Link to="/tv">
+              <Button variant="outline" size="sm" className="hover:border-primary hover:text-primary">
+                <Monitor className="w-4 h-4 mr-2" /> ← Sair para a TV
+              </Button>
+            </Link>
+          </div>
           {tab === "dashboard" && <DashboardTab />}
           {tab === "ensalamento" && <EnsalamentoTab />}
           {tab === "professores" && <ProfessoresTab />}
