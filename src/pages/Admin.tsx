@@ -1,425 +1,179 @@
 import { useEffect, useState } from "react";
-import { useNavigate, Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  GraduationCap,
-  LogOut,
-  Plus,
-  Pencil,
-  Trash2,
-  Monitor,
-  Users,
-  CalendarDays,
-  Search,
+  LayoutDashboard, CalendarDays, Users, BookOpen, MapPin, Clock,
+  Settings as SettingsIcon, ShieldCheck, LogOut, Monitor, GraduationCap, Menu, X,
 } from "lucide-react";
-import { toast } from "sonner";
-import AdminUsers from "@/components/AdminUsers";
+import { useUserRole } from "@/hooks/useUserRole";
+import { useSettings } from "@/contexts/SettingsContext";
+import DashboardTab from "@/components/admin/DashboardTab";
+import EnsalamentoTab from "@/components/admin/EnsalamentoTab";
+import ProfessoresTab from "@/components/admin/ProfessoresTab";
+import DisciplinasTab from "@/components/admin/DisciplinasTab";
+import SalasTab from "@/components/admin/SalasTab";
+import HorariosTab from "@/components/admin/HorariosTab";
+import AdminsTab from "@/components/admin/AdminsTab";
+import SettingsTab from "@/components/admin/SettingsTab";
+import { Loader2 } from "lucide-react";
 
-type Ensalamento = {
-  id: string;
-  sala: string;
-  bloco: string | null;
-  turno: string;
-  horario: string;
-  professor: string | null;
-  segunda: string | null;
-  terca: string | null;
-  quarta: string | null;
-  quinta: string | null;
-  sexta: string | null;
-  sabado: string | null;
-};
-
-const empty: Omit<Ensalamento, "id"> = {
-  sala: "",
-  bloco: "",
-  turno: "manha",
-  horario: "",
-  professor: "",
-  segunda: "",
-  terca: "",
-  quarta: "",
-  quinta: "",
-  sexta: "",
-  sabado: "",
-};
+type TabKey =
+  | "dashboard" | "ensalamento" | "professores" | "disciplinas"
+  | "salas" | "horarios" | "admins" | "settings";
 
 const Admin = () => {
   const navigate = useNavigate();
-  const [rows, setRows] = useState<Ensalamento[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [editing, setEditing] = useState<Ensalamento | null>(null);
-  const [form, setForm] = useState(empty);
-  const [open, setOpen] = useState(false);
-  const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [userEmail, setUserEmail] = useState<string>("");
+  const { settings } = useSettings();
+  const { userId, email, isAdmin, isSuperAdmin, loading } = useUserRole();
+  const [tab, setTab] = useState<TabKey>("dashboard");
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      if (!data.session) {
-        navigate("/login");
-        return;
-      }
-      setUserEmail(data.session.user.email ?? "");
-      load();
-    });
+    if (!loading && !userId) navigate("/login", { replace: true });
+  }, [loading, userId, navigate]);
 
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
-      if (!session) navigate("/login");
-    });
-    return () => sub.subscription.unsubscribe();
-  }, [navigate]);
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center gradient-mesh">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
 
-  const load = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("ensalamento")
-      .select("*")
-      .order("turno")
-      .order("horario");
-    if (error) {
-      toast.error("Erro ao carregar", { description: error.message });
-    } else {
-      setRows((data as Ensalamento[]) ?? []);
-    }
-    setLoading(false);
-  };
+  if (!userId) return null;
+
+  if (!isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center gradient-mesh px-6">
+        <div className="glass-card p-10 max-w-md text-center">
+          <ShieldCheck className="w-12 h-12 text-primary mx-auto mb-4" />
+          <h1 className="text-2xl font-bold mb-2">Acesso restrito</h1>
+          <p className="text-muted-foreground mb-6">
+            Sua conta ({email}) não tem permissão administrativa.
+          </p>
+          <Button onClick={async () => { await supabase.auth.signOut(); navigate("/login"); }} variant="outline">
+            Sair
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate("/login");
   };
 
-  const openNew = () => {
-    setEditing(null);
-    setForm(empty);
-    setOpen(true);
-  };
+  const items: { key: TabKey; label: string; icon: any; superOnly?: boolean }[] = [
+    { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
+    { key: "ensalamento", label: "Ensalamento", icon: CalendarDays },
+    { key: "professores", label: "Professores", icon: Users },
+    { key: "disciplinas", label: "Disciplinas", icon: BookOpen },
+    { key: "salas", label: "Salas", icon: MapPin },
+    { key: "horarios", label: "Horários", icon: Clock },
+    { key: "admins", label: "Administradores", icon: ShieldCheck, superOnly: true },
+    { key: "settings", label: "Configurações", icon: SettingsIcon, superOnly: true },
+  ];
 
-  const openEdit = (row: Ensalamento) => {
-    setEditing(row);
-    setForm({
-      sala: row.sala,
-      bloco: row.bloco ?? "",
-      turno: row.turno,
-      horario: row.horario,
-      professor: row.professor ?? "",
-      segunda: row.segunda ?? "",
-      terca: row.terca ?? "",
-      quarta: row.quarta ?? "",
-      quinta: row.quinta ?? "",
-      sexta: row.sexta ?? "",
-      sabado: row.sabado ?? "",
-    });
-    setOpen(true);
-  };
-
-  const handleSave = async () => {
-    if (!form.sala || !form.horario || !form.turno) {
-      toast.error("Preencha sala, turno e horário");
-      return;
-    }
-    const payload = {
-      ...form,
-      bloco: form.bloco || null,
-      professor: form.professor || null,
-      segunda: form.segunda || null,
-      terca: form.terca || null,
-      quarta: form.quarta || null,
-      quinta: form.quinta || null,
-      sexta: form.sexta || null,
-      sabado: form.sabado || null,
-    };
-    if (editing) {
-      const { error } = await supabase
-        .from("ensalamento")
-        .update(payload)
-        .eq("id", editing.id);
-      if (error) return toast.error("Erro ao salvar", { description: error.message });
-      toast.success("Atualizado com sucesso");
-    } else {
-      const { error } = await supabase.from("ensalamento").insert(payload);
-      if (error) return toast.error("Erro ao criar", { description: error.message });
-      toast.success("Criado com sucesso");
-    }
-    setOpen(false);
-    load();
-  };
-
-  const handleDelete = async () => {
-    if (!deleteId) return;
-    const { error } = await supabase.from("ensalamento").delete().eq("id", deleteId);
-    if (error) return toast.error("Erro ao excluir", { description: error.message });
-    toast.success("Excluído");
-    setDeleteId(null);
-    load();
-  };
-
-  const filtered = rows.filter((r) => {
-    const q = search.toLowerCase();
-    if (!q) return true;
-    return (
-      r.sala.toLowerCase().includes(q) ||
-      (r.professor ?? "").toLowerCase().includes(q) ||
-      (r.bloco ?? "").toLowerCase().includes(q) ||
-      r.horario.toLowerCase().includes(q)
-    );
-  });
+  const visibleItems = items.filter((i) => !i.superOnly || isSuperAdmin);
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="bg-card border-b border-border sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between gap-4">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl gradient-primary flex items-center justify-center shadow-glow">
-              <GraduationCap className="w-6 h-6 text-primary-foreground" />
+    <div className="min-h-screen gradient-mesh">
+      {/* Mobile top bar */}
+      <header className="md:hidden glass border-b border-border sticky top-0 z-40 px-4 py-3 flex items-center justify-between">
+        <Link to="/" className="flex items-center gap-2">
+          {settings.logo_url ? (
+            <img src={settings.logo_url} alt="" className="w-8 h-8 rounded-lg object-cover" />
+          ) : (
+            <div className="w-8 h-8 rounded-lg gradient-brand flex items-center justify-center">
+              <GraduationCap className="w-5 h-5 text-primary-foreground" />
             </div>
-            <div>
-              <h1 className="text-xl font-bold leading-none">Afya</h1>
-              <p className="text-xs text-muted-foreground mt-0.5">Painel Administrativo</p>
-            </div>
-          </Link>
-          <div className="flex items-center gap-2">
-            <span className="hidden md:block text-sm text-muted-foreground mr-2">
-              {userEmail}
-            </span>
-            <Link to="/tv" target="_blank">
-              <Button variant="outline" size="sm">
-                <Monitor className="w-4 h-4 mr-2" />
-                Abrir TV
-              </Button>
-            </Link>
-            <Button variant="ghost" size="sm" onClick={handleLogout}>
-              <LogOut className="w-4 h-4 mr-2" />
-              Sair
-            </Button>
-          </div>
-        </div>
+          )}
+          <span className="font-bold gradient-text">{settings.brand_name}</span>
+        </Link>
+        <Button size="icon" variant="ghost" onClick={() => setSidebarOpen(true)}>
+          <Menu className="w-5 h-5" />
+        </Button>
       </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-8">
-        <Tabs defaultValue="ensalamento">
-          <TabsList className="mb-6">
-            <TabsTrigger value="ensalamento">
-              <CalendarDays className="w-4 h-4 mr-2" />
-              Ensalamento
-            </TabsTrigger>
-            <TabsTrigger value="usuarios">
-              <Users className="w-4 h-4 mr-2" />
-              Administradores
-            </TabsTrigger>
-          </TabsList>
+      <div className="flex">
+        {/* Sidebar overlay (mobile) */}
+        {sidebarOpen && (
+          <div className="fixed inset-0 bg-black/40 z-40 md:hidden" onClick={() => setSidebarOpen(false)} />
+        )}
 
-          <TabsContent value="ensalamento" className="space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div>
-                <h2 className="text-2xl font-bold">Gerenciar Aulas</h2>
-                <p className="text-muted-foreground text-sm">
-                  {rows.length} {rows.length === 1 ? "registro" : "registros"} cadastrados
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar sala, professor..."
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    className="pl-9 w-64"
-                  />
+        {/* Sidebar */}
+        <aside
+          className={`${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          } md:translate-x-0 fixed md:sticky top-0 left-0 z-50 md:z-10 h-screen w-64 glass-strong border-r border-border transition-transform`}
+        >
+          <div className="p-5 flex items-center justify-between md:justify-start gap-3 border-b border-border">
+            <Link to="/" className="flex items-center gap-3">
+              {settings.logo_url ? (
+                <img src={settings.logo_url} alt="" className="w-10 h-10 rounded-xl object-cover" />
+              ) : (
+                <div className="w-10 h-10 rounded-xl gradient-brand flex items-center justify-center shadow-brand">
+                  <GraduationCap className="w-6 h-6 text-primary-foreground" />
                 </div>
-                <Button onClick={openNew}>
-                  <Plus className="w-4 h-4 mr-2" />
-                  Nova Aula
-                </Button>
+              )}
+              <div>
+                <p className="font-bold leading-none gradient-text text-lg">{settings.brand_name}</p>
+                <p className="text-[10px] text-muted-foreground mt-1">Painel Master</p>
               </div>
-            </div>
-
-            <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-soft">
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/40">
-                      <TableHead>Sala</TableHead>
-                      <TableHead>Bloco</TableHead>
-                      <TableHead>Turno</TableHead>
-                      <TableHead>Horário</TableHead>
-                      <TableHead>Professor</TableHead>
-                      <TableHead>Seg</TableHead>
-                      <TableHead>Ter</TableHead>
-                      <TableHead>Qua</TableHead>
-                      <TableHead>Qui</TableHead>
-                      <TableHead>Sex</TableHead>
-                      <TableHead>Sáb</TableHead>
-                      <TableHead className="text-right">Ações</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loading ? (
-                      <TableRow>
-                        <TableCell colSpan={12} className="text-center py-12 text-muted-foreground">
-                          Carregando...
-                        </TableCell>
-                      </TableRow>
-                    ) : filtered.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={12} className="text-center py-12 text-muted-foreground">
-                          Nenhum registro encontrado
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      filtered.map((r) => (
-                        <TableRow key={r.id}>
-                          <TableCell className="font-semibold">{r.sala}</TableCell>
-                          <TableCell>{r.bloco ?? "—"}</TableCell>
-                          <TableCell className="capitalize">{r.turno}</TableCell>
-                          <TableCell className="tabular-nums">{r.horario}</TableCell>
-                          <TableCell>{r.professor ?? "—"}</TableCell>
-                          <TableCell className="text-xs max-w-32 truncate">{r.segunda ?? "—"}</TableCell>
-                          <TableCell className="text-xs max-w-32 truncate">{r.terca ?? "—"}</TableCell>
-                          <TableCell className="text-xs max-w-32 truncate">{r.quarta ?? "—"}</TableCell>
-                          <TableCell className="text-xs max-w-32 truncate">{r.quinta ?? "—"}</TableCell>
-                          <TableCell className="text-xs max-w-32 truncate">{r.sexta ?? "—"}</TableCell>
-                          <TableCell className="text-xs max-w-32 truncate">{r.sabado ?? "—"}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-1">
-                              <Button size="icon" variant="ghost" onClick={() => openEdit(r)}>
-                                <Pencil className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                size="icon"
-                                variant="ghost"
-                                onClick={() => setDeleteId(r.id)}
-                                className="text-destructive hover:text-destructive"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="usuarios">
-            <AdminUsers />
-          </TabsContent>
-        </Tabs>
-      </main>
-
-      {/* Dialog de criar/editar */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Editar aula" : "Nova aula"}</DialogTitle>
-          </DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
-            <div className="space-y-2">
-              <Label>Sala *</Label>
-              <Input value={form.sala} onChange={(e) => setForm({ ...form, sala: e.target.value })} placeholder="Ex: 101" />
-            </div>
-            <div className="space-y-2">
-              <Label>Bloco</Label>
-              <Input value={form.bloco ?? ""} onChange={(e) => setForm({ ...form, bloco: e.target.value })} placeholder="Ex: A" />
-            </div>
-            <div className="space-y-2">
-              <Label>Turno *</Label>
-              <Select value={form.turno} onValueChange={(v) => setForm({ ...form, turno: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manha">Manhã</SelectItem>
-                  <SelectItem value="tarde">Tarde</SelectItem>
-                  <SelectItem value="noite">Noite</SelectItem>
-                  <SelectItem value="integral">Integral</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>Horário * (ex: 08:00-10:00)</Label>
-              <Input value={form.horario} onChange={(e) => setForm({ ...form, horario: e.target.value })} placeholder="08:00-10:00" />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label>Professor</Label>
-              <Input value={form.professor ?? ""} onChange={(e) => setForm({ ...form, professor: e.target.value })} />
-            </div>
-            {(["segunda","terca","quarta","quinta","sexta","sabado"] as const).map((d) => (
-              <div key={d} className="space-y-2">
-                <Label className="capitalize">{d === "terca" ? "Terça" : d === "sabado" ? "Sábado" : d}</Label>
-                <Input
-                  value={(form as any)[d] ?? ""}
-                  onChange={(e) => setForm({ ...form, [d]: e.target.value } as any)}
-                  placeholder="Disciplina"
-                />
-              </div>
-            ))}
+            </Link>
+            <Button size="icon" variant="ghost" className="md:hidden" onClick={() => setSidebarOpen(false)}>
+              <X className="w-4 h-4" />
+            </Button>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSave}>{editing ? "Salvar" : "Criar"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      {/* Confirmar exclusão */}
-      <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir esta aula?</AlertDialogTitle>
-            <AlertDialogDescription>
-              Esta ação não pode ser desfeita. O registro será removido permanentemente.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">
-              Excluir
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+          <nav className="p-3 space-y-1">
+            {visibleItems.map((it) => {
+              const Icon = it.icon;
+              const active = tab === it.key;
+              return (
+                <button
+                  key={it.key}
+                  onClick={() => { setTab(it.key); setSidebarOpen(false); }}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-smooth ${
+                    active
+                      ? "gradient-brand text-primary-foreground shadow-brand"
+                      : "hover:bg-muted/60 text-foreground"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {it.label}
+                </button>
+              );
+            })}
+          </nav>
+
+          <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-border space-y-2">
+            <div className="px-3 py-2 text-xs text-muted-foreground truncate">{email}</div>
+            <Link to="/tv" target="_blank">
+              <Button variant="outline" size="sm" className="w-full justify-start">
+                <Monitor className="w-4 h-4 mr-2" /> Abrir TV
+              </Button>
+            </Link>
+            <Button variant="ghost" size="sm" onClick={handleLogout} className="w-full justify-start text-destructive">
+              <LogOut className="w-4 h-4 mr-2" /> Sair
+            </Button>
+          </div>
+        </aside>
+
+        {/* Content */}
+        <main className="flex-1 min-w-0 p-4 md:p-8">
+          {tab === "dashboard" && <DashboardTab />}
+          {tab === "ensalamento" && <EnsalamentoTab />}
+          {tab === "professores" && <ProfessoresTab />}
+          {tab === "disciplinas" && <DisciplinasTab />}
+          {tab === "salas" && <SalasTab />}
+          {tab === "horarios" && <HorariosTab />}
+          {tab === "admins" && isSuperAdmin && <AdminsTab currentUserId={userId} />}
+          {tab === "settings" && isSuperAdmin && <SettingsTab />}
+        </main>
+      </div>
     </div>
   );
 };
