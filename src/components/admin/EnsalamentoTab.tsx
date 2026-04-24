@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Loader2, Search, GripVertical } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, GripVertical, Upload } from "lucide-react";
+import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { normalizeSearch, statusFor, getAndarNumero } from "@/lib/ensalamento-utils";
 
@@ -111,6 +112,62 @@ const EnsalamentoTab = () => {
   };
 
   useEffect(() => { load(); loadOptions(); }, []);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const json = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+      // map json to payload
+      const mappedRows = json.map((row) => ({
+        sala: String(row.Sala || row.sala || ""),
+        bloco: row.Bloco || row.bloco || null,
+        turno: String(row.Turno || row.turno || "manha").toLowerCase(),
+        horario: String(row.Horário || row.Horario || row.horario || ""),
+        professor: row.Professor || row.professor || null,
+        segunda: row.Segunda || row.segunda || null,
+        terca: row.Terça || row.Terca || row.terca || null,
+        quarta: row.Quarta || row.quarta || null,
+        quinta: row.Quinta || row.quinta || null,
+        sexta: row.Sexta || row.sexta || null,
+        sabado: row.Sábado || row.Sabado || row.sabado || null,
+        sort_order: 0
+      })).filter(r => r.sala && r.horario); // only valid rows
+
+      if (mappedRows.length === 0) {
+        toast.error("Nenhuma aula encontrada. Verifique as colunas da planilha.");
+        setImporting(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
+      let currentSortOrder = rows.length;
+      for (const r of mappedRows) {
+        r.sort_order = currentSortOrder++;
+      }
+
+      const { error } = await supabase.from("ensalamento").insert(mappedRows);
+      if (error) throw error;
+
+      toast.success(`${mappedRows.length} aulas importadas com sucesso!`);
+      load();
+    } catch (err: any) {
+      toast.error("Erro ao importar", { description: err.message });
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const openNew = () => {
     setEditing(null);
@@ -255,6 +312,21 @@ const EnsalamentoTab = () => {
               className="pl-9 w-64"
             />
           </div>
+          <input
+            type="file"
+            accept=".xlsx, .xls, .csv"
+            className="hidden"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+          />
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            variant="outline"
+            disabled={importing}
+          >
+            {importing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+            {importing ? "Importando..." : "Importar Planilha"}
+          </Button>
           <Button onClick={openNew} className="gradient-brand border-0 shadow-brand">
             <Plus className="w-4 h-4 mr-2" /> Nova Aula
           </Button>

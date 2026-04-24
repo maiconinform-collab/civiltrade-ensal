@@ -96,7 +96,20 @@ const TVKiosk = () => {
   const sorted = useMemo(() => {
     if (!today) return [];
     const list = rows
-      .map((r) => ({ ...r, disciplina: (r as any)[today] as string | null }))
+      .map((r) => {
+        let rawDisciplina = (r as any)[today] as string | null;
+        let disciplina = rawDisciplina;
+        let horarioOverride = r.horario;
+
+        if (rawDisciplina) {
+          const timeMatch = rawDisciplina.match(/(.*?)\s+(\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2})\s*$/);
+          if (timeMatch) {
+            disciplina = timeMatch[1].trim();
+            horarioOverride = timeMatch[2].replace(/\s+/g, "");
+          }
+        }
+        return { ...r, disciplina, horario: horarioOverride };
+      })
       .filter((r) => r.disciplina && r.disciplina.trim().length > 0);
     return list.sort((a, b) => {
       if (a.sort_order !== b.sort_order) return (a.sort_order || 0) - (b.sort_order || 0);

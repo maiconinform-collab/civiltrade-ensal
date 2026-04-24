@@ -50,11 +50,10 @@ export const FeedbackModal = () => {
           onMouseLeave={() => setHover(0)}
         >
           <Star
-            className={`w-4 h-4 sm:w-5 sm:h-5 ${
-              star <= (hover || rating)
-                ? "fill-primary text-primary"
-                : "text-muted-foreground/30 fill-transparent"
-            } transition-colors`}
+            className={`w-4 h-4 sm:w-5 sm:h-5 ${star <= (hover || rating)
+              ? "fill-primary text-primary"
+              : "text-muted-foreground/30 fill-transparent"
+              } transition-colors`}
           />
         </button>
       ))}
