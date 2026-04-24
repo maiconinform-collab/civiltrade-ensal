@@ -57,7 +57,7 @@ const TVKiosk = () => {
         supabase.from("auditorio_eventos").select("*").gte("fim", new Date().toISOString()).order("inicio").limit(10),
         supabase.from("avisos").select("*").eq("ativo", true).order("ordem"),
       ]);
-      
+
       console.log('Dados recebidos (Ensalamento):', ens.data);
       console.log('Dados recebidos (Auditório):', ev.data);
       console.log('Dados recebidos (Avisos):', av.data);
@@ -234,17 +234,15 @@ const TVKiosk = () => {
       <div className="xl:hidden px-4 sm:px-6 pb-3 flex gap-2">
         <button
           onClick={() => setMobileTab("ensalamento")}
-          className={`flex-1 px-4 py-2 rounded-xl text-sm font-bold transition-smooth ${
-            mobileTab === "ensalamento" ? "gradient-brand text-primary-foreground shadow-brand" : "glass-card text-muted-foreground"
-          }`}
+          className={`flex-1 px-4 py-2 rounded-xl text-sm font-bold transition-smooth ${mobileTab === "ensalamento" ? "gradient-brand text-primary-foreground shadow-brand" : "glass-card text-muted-foreground"
+            }`}
         >
           Ensalamento ({displayed.length})
         </button>
         <button
           onClick={() => setMobileTab("auditorio")}
-          className={`flex-1 px-4 py-2 rounded-xl text-sm font-bold transition-smooth ${
-            mobileTab === "auditorio" ? "gradient-brand text-primary-foreground shadow-brand" : "glass-card text-muted-foreground"
-          }`}
+          className={`flex-1 px-4 py-2 rounded-xl text-sm font-bold transition-smooth ${mobileTab === "auditorio" ? "gradient-brand text-primary-foreground shadow-brand" : "glass-card text-muted-foreground"
+            }`}
         >
           Auditório ({eventos.length})
         </button>
@@ -291,9 +289,8 @@ const TVKiosk = () => {
                 return (
                   <div
                     key={r.id}
-                    className={`glass-card p-3 sm:p-4 md:p-5 transition-smooth animate-slide-up cursor-pointer hover:-translate-y-1 hover:border-primary hover:shadow-brand relative ${
-                      isDone ? "opacity-50" : ""
-                    } ${isNow ? "ring-4 ring-primary shadow-brand bg-primary/5 animate-pulse-ring" : ""}`}
+                    className={`glass-card p-3 sm:p-4 md:p-5 transition-smooth animate-slide-up cursor-pointer hover:-translate-y-1 hover:border-primary hover:shadow-brand relative ${isDone ? "opacity-50" : ""
+                      } ${isNow ? "ring-4 ring-primary shadow-brand bg-primary/5 animate-pulse-ring" : ""}`}
                   >
                     {/* Badge de Turno (sempre visível) */}
                     <div className="flex items-center gap-2 mb-3">
@@ -400,7 +397,7 @@ const TVKiosk = () => {
       <footer className="px-4 sm:px-6 md:px-10 py-2 flex flex-wrap items-center justify-between gap-2 text-[10px] sm:text-xs text-muted-foreground border-t border-border shrink-0 mt-auto bg-background/50 backdrop-blur-md sticky bottom-0 z-10">
         <div className="flex items-center gap-2">
           <img src="/avatar.png.PNG" alt="Maicon Show" className="w-5 h-5 md:w-6 md:h-6 rounded-full border border-primary/20 shadow-sm object-cover" />
-          <span>Desenvolvido por <span className="font-semibold text-foreground">Maicon Show</span> 👨🏽‍💻</span>
+          <span>Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon  </span> 👨🏽‍💻</span>
         </div>
         <a href="/login" className="glass px-3 py-1.5 rounded-full hover:text-primary hover:border-primary/40 transition-smooth inline-flex items-center gap-1.5">
           🔒 Painel Administrativo

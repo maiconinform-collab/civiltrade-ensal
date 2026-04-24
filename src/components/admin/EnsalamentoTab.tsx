@@ -129,20 +129,48 @@ const EnsalamentoTab = () => {
       const json = XLSX.utils.sheet_to_json(worksheet) as any[];
 
       // map json to payload
-      const mappedRows = json.map((row) => ({
-        sala: String(row.Sala || row.sala || ""),
-        bloco: row.Bloco || row.bloco || null,
-        turno: String(row.Turno || row.turno || "manha").toLowerCase(),
-        horario: String(row.Horário || row.Horario || row.horario || ""),
-        professor: row.Professor || row.professor || null,
-        segunda: row.Segunda || row.segunda || null,
-        terca: row.Terça || row.Terca || row.terca || null,
-        quarta: row.Quarta || row.quarta || null,
-        quinta: row.Quinta || row.quinta || null,
-        sexta: row.Sexta || row.sexta || null,
-        sabado: row.Sábado || row.Sabado || row.sabado || null,
-        sort_order: 0
-      })).filter(r => r.sala && r.horario); // only valid rows
+      const mappedRows = json.map((row) => {
+        // Normaliza as chaves para facilitar a busca (remove acentos, espaços, etc)
+        const normalizedRow: any = {};
+        for (const key of Object.keys(row)) {
+          const normKey = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+          normalizedRow[normKey] = row[key];
+        }
+
+        let horarioStr = normalizedRow.horario ? String(normalizedRow.horario) : "";
+
+        // Se não encontrou a coluna horário explícita, tenta extrair da disciplina
+        if (!horarioStr) {
+          const timeRegex = /\b(\d{1,2}[:hH]\d{0,2}\s*[-–àaté]+\s*\d{1,2}[:hH]\d{0,2})\b/i;
+          const days = ['segunda', 'terca', 'quarta', 'quinta', 'sexta', 'sabado'];
+          for (const day of days) {
+            const val = normalizedRow[day];
+            if (val) {
+              const match = String(val).match(timeRegex);
+              if (match) {
+                // Formata "8h - 12h" para "08:00-12:00" etc.
+                horarioStr = match[1].replace(/\s*(?:[-–àaté]+)\s*/i, "-");
+                break;
+              }
+            }
+          }
+        }
+
+        return {
+          sala: String(normalizedRow.sala || ""),
+          bloco: normalizedRow.bloco || null,
+          turno: String(normalizedRow.turno || "manha").toLowerCase(),
+          horario: horarioStr,
+          professor: normalizedRow.professor || null,
+          segunda: normalizedRow.segunda || null,
+          terca: normalizedRow.terca || null,
+          quarta: normalizedRow.quarta || null,
+          quinta: normalizedRow.quinta || null,
+          sexta: normalizedRow.sexta || null,
+          sabado: normalizedRow.sabado || null,
+          sort_order: 0
+        };
+      }).filter(r => r.sala && r.horario && r.sala !== "undefined" && r.horario !== "undefined"); // only valid rows
 
       if (mappedRows.length === 0) {
         toast.error("Nenhuma aula encontrada. Verifique as colunas da planilha.");

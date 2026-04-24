@@ -111,9 +111,8 @@ const Admin = () => {
 
         {/* Sidebar */}
         <aside
-          className={`${
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          } md:translate-x-0 fixed md:sticky top-0 left-0 z-50 md:z-10 h-screen w-64 glass-strong border-r border-border transition-transform`}
+          className={`${sidebarOpen ? "translate-x-0" : "-translate-x-full"
+            } md:translate-x-0 fixed md:sticky top-0 left-0 z-50 md:z-10 h-screen w-64 glass-strong border-r border-border transition-transform`}
         >
           <div className="p-5 flex items-center justify-between md:justify-start gap-3 border-b border-border">
             <Link to="/" className="flex items-center gap-3">
@@ -142,11 +141,10 @@ const Admin = () => {
                 <button
                   key={it.key}
                   onClick={() => { setTab(it.key); setSidebarOpen(false); }}
-                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-smooth ${
-                    active
-                      ? "gradient-brand text-primary-foreground shadow-brand"
-                      : "hover:bg-muted/60 text-foreground"
-                  }`}
+                  className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-smooth ${active
+                    ? "gradient-brand text-primary-foreground shadow-brand"
+                    : "hover:bg-muted/60 text-foreground"
+                    }`}
                 >
                   <Icon className="w-4 h-4" />
                   {it.label}
@@ -158,7 +156,7 @@ const Admin = () => {
           <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-border space-y-2 bg-background/80 backdrop-blur-md">
             <div className="px-3 pb-1 pt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
               <img src="/avatar.png.PNG" alt="Maicon Show" className="w-6 h-6 rounded-full border border-primary/20 shadow-sm object-cover" />
-              <span>Desenvolvido por <span className="font-semibold text-foreground">Maicon Show</span> 👨🏽‍💻</span>
+              <span>Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon </span> 👨🏽‍💻</span>
             </div>
             <div className="px-3 pb-2 text-xs text-muted-foreground truncate border-b border-border/50">{email}</div>
             <Link to="/tv" target="_blank">

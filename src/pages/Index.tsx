@@ -64,7 +64,7 @@ const Index = () => {
 
       <footer className="py-6 flex items-center justify-center gap-3 text-sm text-muted-foreground">
         <img src="/avatar.png.PNG" alt="Maicon Show" className="w-8 h-8 rounded-full border border-primary/20 shadow-sm object-cover" />
-        <span>Desenvolvido por <span className="font-semibold text-foreground">Maicon Show</span> 👨🏽‍💻</span>
+        <span>Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon </span> 👨🏽‍💻</span>
       </footer>
       <FeedbackModal />
     </div>

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,8 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Loader2, Mic } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Mic, Upload } from "lucide-react";
+import * as XLSX from "xlsx";
 import { toast } from "sonner";
 
 type Evento = {
@@ -47,6 +48,72 @@ const AuditorioTab = () => {
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setImporting(true);
+    try {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
+      const json = XLSX.utils.sheet_to_json(worksheet) as any[];
+
+      const mappedRows = json.map((row) => {
+        const normalizedRow: any = {};
+        for (const key of Object.keys(row)) {
+          const normKey = key.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+          normalizedRow[normKey] = row[key];
+        }
+
+        let inicio = new Date().toISOString();
+        let fim = new Date(new Date().getTime() + 60*60*1000).toISOString(); // +1 hour
+        
+        // Se houver data/hora na planilha, tentamos parsear. Simplificação por agora:
+        // Assume ISO ou confia no que vem, ou usa data atual.
+        if (normalizedRow.inicio) {
+           const parsed = new Date(normalizedRow.inicio);
+           if (!isNaN(parsed.getTime())) inicio = parsed.toISOString();
+        }
+        if (normalizedRow.fim) {
+           const parsed = new Date(normalizedRow.fim);
+           if (!isNaN(parsed.getTime())) fim = parsed.toISOString();
+        }
+
+        return {
+          nome: String(normalizedRow.nome || normalizedRow.evento || "Evento Sem Nome"),
+          responsavel: normalizedRow.responsavel || null,
+          descricao: normalizedRow.descricao || null,
+          inicio,
+          fim,
+          local: normalizedRow.local || "Auditório Principal"
+        };
+      }).filter(r => r.nome !== "Evento Sem Nome");
+
+      if (mappedRows.length === 0) {
+        toast.error("Nenhum evento encontrado. Verifique as colunas (Nome/Evento).");
+        setImporting(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+
+      const { error } = await supabase.from("auditorio_eventos").insert(mappedRows);
+      if (error) throw error;
+
+      toast.success(`${mappedRows.length} eventos importados com sucesso!`);
+      load();
+    } catch (err: any) {
+      toast.error("Erro ao importar", { description: err.message });
+    } finally {
+      setImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   const openNew = () => { setEditing(null); setForm(empty); setOpen(true); };
   const openEdit = (r: Evento) => {
@@ -90,9 +157,26 @@ const AuditorioTab = () => {
           <h2 className="text-2xl font-bold flex items-center gap-2"><Mic className="w-6 h-6 text-primary" /> Agenda do Auditório</h2>
           <p className="text-muted-foreground text-sm">{rows.length} evento{rows.length === 1 ? "" : "s"} cadastrado{rows.length === 1 ? "" : "s"}</p>
         </div>
-        <Button onClick={openNew} className="gradient-brand border-0 shadow-brand">
-          <Plus className="w-4 h-4 mr-2" /> Novo evento
-        </Button>
+        <div className="flex gap-2">
+          <input
+            type="file"
+            accept=".xlsx, .xls, .csv"
+            className="hidden"
+            ref={fileInputRef}
+            onChange={handleFileUpload}
+          />
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            variant="outline"
+            disabled={importing}
+          >
+            {importing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+            {importing ? "Importando..." : "Importar Planilha"}
+          </Button>
+          <Button onClick={openNew} className="gradient-brand border-0 shadow-brand">
+            <Plus className="w-4 h-4 mr-2" /> Novo evento
+          </Button>
+        </div>
       </div>
 
       <div className="glass-card overflow-hidden">
