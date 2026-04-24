@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Link } from "react-router-dom";
 import { GraduationCap, MapPin, Clock, User, Mic, Radio, AlertTriangle, Building2, ArrowLeft } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
+import { siteConfig } from "@/config/siteConfig";
 import { QRCodeSVG } from "qrcode.react";
 import {
   parseHorario, statusFor, dayKey, getAndar, getAndarNumero,
@@ -102,10 +103,12 @@ const TVKiosk = () => {
         let horarioOverride = r.horario;
 
         if (rawDisciplina) {
-          const timeMatch = rawDisciplina.match(/(.*?)\s+(\d{1,2}:\d{2}\s*[-–]\s*\d{1,2}:\d{2})\s*$/);
-          if (timeMatch) {
-            disciplina = timeMatch[1].trim();
-            horarioOverride = timeMatch[2].replace(/\s+/g, "");
+          // Busca um horário em formatos como 08:00-11:20, 8h-12h, 8hs às 12hs em qualquer parte do texto
+          const timeRegex = /\b(\d{1,2}[:hH]\d{0,2}\s*[-–àaté]+\s*\d{1,2}[:hH]\d{0,2})\b/i;
+          const match = rawDisciplina.match(timeRegex);
+          if (match) {
+            horarioOverride = match[1].replace(/\s*(?:[-–àaté]+)\s*/i, "-").replace(/[hH]s?/g, ":00");
+            disciplina = rawDisciplina.replace(timeRegex, "").replace(/\s{2,}/g, " ").trim();
           }
         }
         return { ...r, disciplina, horario: horarioOverride };
@@ -396,8 +399,8 @@ const TVKiosk = () => {
       {/* Footer */}
       <footer className="px-4 sm:px-6 md:px-10 py-2 flex flex-wrap items-center justify-between gap-2 text-[10px] sm:text-xs text-muted-foreground border-t border-border shrink-0 mt-auto bg-background/50 backdrop-blur-md sticky bottom-0 z-10">
         <div className="flex items-center gap-2">
-          <img src="/avatar.png.PNG" alt="Maicon Show" className="w-5 h-5 md:w-6 md:h-6 rounded-full border border-primary/20 shadow-sm object-cover" />
-          <span>Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon  </span> 👨🏽‍💻</span>
+          <img src={siteConfig.devAvatarUrl} alt={siteConfig.devName} className="w-5 h-5 md:w-6 md:h-6 rounded-full border border-primary/20 shadow-sm object-cover" />
+          <span>Desenvolvido por <span className="font-semibold text-foreground">{siteConfig.devName}</span> 👨🏽‍💻</span>
         </div>
         <a href="/login" className="glass px-3 py-1.5 rounded-full hover:text-primary hover:border-primary/40 transition-smooth inline-flex items-center gap-1.5">
           🔒 Painel Administrativo

@@ -1,19 +1,31 @@
+/**
+ * Este componente gerencia a tela de Autenticação (Login) do sistema.
+ * 
+ * Objetivo: Fornecer acesso seguro à área administrativa. Inclui funções de 
+ * login e recuperação de senha, comunicando-se diretamente com o Supabase Auth.
+ */
+
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, GraduationCap } from "lucide-react";
+import { Loader2, GraduationCap, User, Lock, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { useSettings } from "@/contexts/SettingsContext";
+import { siteConfig } from "@/config/siteConfig";
 
 const Login = () => {
-  const navigate = useNavigate();
-  const { settings } = useSettings();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  // --- VARIÁVEIS CRÍTICAS E ESTADOS ---
+  const navigate = useNavigate(); // Hook para redirecionar o usuário
+  const { settings } = useSettings(); // Configurações visuais (logo, nome, etc)
+  const [email, setEmail] = useState(""); // E-mail digitado pelo usuário
+  const [password, setPassword] = useState(""); // Senha digitada
+  const [loading, setLoading] = useState(false); // Controle do estado de carregamento do botão
+
+  // --- EFEITOS COLATERAIS (LIFECYCLE) ---
+  // Verifica se o usuário já está logado. Se estiver, manda direto pro painel.
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -21,6 +33,8 @@ const Login = () => {
     });
   }, [navigate]);
 
+  // --- FUNÇÕES DE AUTENTICAÇÃO ---
+  // Realiza o login com email e senha usando Supabase
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -34,6 +48,7 @@ const Login = () => {
     navigate("/admin", { replace: true });
   };
 
+  // Solicita o e-mail de redefinição de senha
   const handleResetPassword = async () => {
     if (!email) {
       toast.error("Por favor, digite seu e-mail no campo acima primeiro.");
@@ -51,6 +66,7 @@ const Login = () => {
     toast.success("E-mail de recuperação enviado! Verifique sua caixa de entrada.");
   };
 
+  // --- RENDERIZAÇÃO DA INTERFACE ---
   return (
     <div className="min-h-screen flex items-center justify-center px-6 gradient-mesh animate-mesh">
       <div className="w-full max-w-md animate-slide-up">
@@ -126,9 +142,9 @@ const Login = () => {
         </div>
 
         <div className="flex items-center justify-center gap-3 mt-6">
-          <img src="/avatar.png.PNG" alt="Maicon Show" className="w-8 h-8 rounded-full border border-primary/20 shadow-sm object-cover" />
+          <img src={siteConfig.devAvatarUrl} alt={siteConfig.devName} className="w-8 h-8 rounded-full border border-primary/20 shadow-sm object-cover" />
           <p className="text-center text-sm text-muted-foreground">
-            Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon </span> 👨🏽‍💻
+            Desenvolvido por <span className="font-semibold text-foreground">{siteConfig.devName}</span> 👨🏽‍💻
           </p>
         </div>
       </div>

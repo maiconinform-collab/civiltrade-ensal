@@ -1,11 +1,26 @@
+/**
+ * Este componente renderiza a página inicial (Landing Page) do sistema.
+ * Ele serve como um portal de entrada, oferecendo links rápidos para o
+ * Painel da TV (Kiosk) e para a Área Administrativa.
+ * 
+ * Objetivo: Ser a primeira tela que o usuário vê, com uma interface
+ * amigável, apresentando o logo e nome da instituição (buscados dinamicamente).
+ */
+
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Monitor, Settings, GraduationCap, Sparkles } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { FeedbackModal } from "@/components/FeedbackModal";
+import { siteConfig } from "@/config/siteConfig";
 
 const Index = () => {
+  // --- VARIÁVEIS CRÍTICAS E ESTADOS ---
+  // settings: Variável que guarda as configurações visuais globais (logo_url, brand_name, unit_name).
+  // Essas informações vêm do banco de dados (tabela settings) através do contexto SettingsContext.
   const { settings } = useSettings();
+
+  // --- RENDERIZAÇÃO DA INTERFACE ---
   return (
     <div className="min-h-screen flex flex-col gradient-mesh animate-mesh">
       <main className="flex-1 flex items-center justify-center px-6 py-16">
@@ -32,6 +47,7 @@ const Index = () => {
             </p>
           </div>
 
+          {/* --- OPÇÕES DE NAVEGAÇÃO (CARDS) --- */}
           <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
             <Link to="/tv" className="group">
               <div className="glass-card p-8 transition-smooth group-hover:scale-[1.02] h-full">
@@ -62,9 +78,11 @@ const Index = () => {
         </div>
       </main>
 
+      {/* --- RODAPÉ --- */}
+      {/* Aqui fica a assinatura do projeto, puxando os dados do arquivo de configuração (siteConfig) */}
       <footer className="py-6 flex items-center justify-center gap-3 text-sm text-muted-foreground">
-        <img src="/avatar.png.PNG" alt="Maicon Show" className="w-8 h-8 rounded-full border border-primary/20 shadow-sm object-cover" />
-        <span>Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon </span> 👨🏽‍💻</span>
+        <img src={siteConfig.devAvatarUrl} alt={siteConfig.devName} className="w-8 h-8 rounded-full border border-primary/20 shadow-sm object-cover" />
+        <span>Desenvolvido por <span className="font-semibold text-foreground">{siteConfig.devName}</span> 👨🏽‍💻</span>
       </footer>
       <FeedbackModal />
     </div>

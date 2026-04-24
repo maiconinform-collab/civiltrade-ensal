@@ -1,3 +1,12 @@
+/**
+ * Este é o componente principal da Área Administrativa (Dashboard).
+ * 
+ * Objetivo: Ele atua como um 'shell' (esqueleto) para carregar todas as outras
+ * abas de administração (Ensalamento, Auditório, Configurações, etc).
+ * Ele controla o menu lateral (Sidebar) e verifica se o usuário tem permissões
+ * de Admin ou Super Admin.
+ */
+
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,6 +17,7 @@ import {
 } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
 import { useSettings } from "@/contexts/SettingsContext";
+import { siteConfig } from "@/config/siteConfig";
 import DashboardTab from "@/components/admin/DashboardTab";
 import EnsalamentoTab from "@/components/admin/EnsalamentoTab";
 import ProfessoresTab from "@/components/admin/ProfessoresTab";
@@ -26,12 +36,21 @@ type TabKey =
   | "salas" | "horarios" | "perfil" | "admins" | "settings";
 
 const Admin = () => {
+  // --- VARIÁVEIS CRÍTICAS E ESTADOS ---
   const navigate = useNavigate();
-  const { settings } = useSettings();
+  const { settings } = useSettings(); // Puxa logo e nome do banco
+  
+  // Hook customizado que verifica o perfil do usuário logado (se é admin ou super_admin)
   const { userId, email, isAdmin, isSuperAdmin, loading } = useUserRole();
+  
+  // Aba atualmente selecionada no menu (default: dashboard)
   const [tab, setTab] = useState<TabKey>("dashboard");
+  
+  // Controle de abertura do menu no celular (mobile)
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  // --- CONTROLE DE ACESSO (PROTECTED ROUTE) ---
+  // Se não estiver carregando e o usuário não existir, chuta para o login
   useEffect(() => {
     if (!loading && !userId) navigate("/login", { replace: true });
   }, [loading, userId, navigate]);
@@ -68,6 +87,8 @@ const Admin = () => {
     navigate("/login");
   };
 
+  // --- DADOS DO MENU LATERAL ---
+  // Define quais abas existem, os ícones e se exigem permissão de Super Admin
   const items: { key: TabKey; label: string; icon: any; superOnly?: boolean }[] = [
     { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
     { key: "ensalamento", label: "Ensalamento", icon: CalendarDays },
@@ -84,8 +105,10 @@ const Admin = () => {
 
   const visibleItems = items.filter((i) => !i.superOnly || isSuperAdmin);
 
+  // --- RENDERIZAÇÃO DA INTERFACE ---
   return (
     <div className="min-h-screen gradient-mesh">
+      {/* --- BARRA SUPERIOR MOBILE --- */}
       {/* Mobile top bar */}
       <header className="md:hidden glass border-b border-border sticky top-0 z-40 px-4 py-3 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2">
@@ -155,8 +178,8 @@ const Admin = () => {
 
           <div className="absolute bottom-0 left-0 right-0 p-3 border-t border-border space-y-2 bg-background/80 backdrop-blur-md">
             <div className="px-3 pb-1 pt-1 flex items-center gap-2 text-[10px] text-muted-foreground">
-              <img src="/avatar.png.PNG" alt="Maicon Show" className="w-6 h-6 rounded-full border border-primary/20 shadow-sm object-cover" />
-              <span>Desenvolvido por <span className="font-semibold text-foreground">Michael Pithon </span> 👨🏽‍💻</span>
+              <img src={siteConfig.devAvatarUrl} alt={siteConfig.devName} className="w-6 h-6 rounded-full border border-primary/20 shadow-sm object-cover" />
+              <span>Desenvolvido por <span className="font-semibold text-foreground">{siteConfig.devName}</span> 👨🏽‍💻</span>
             </div>
             <div className="px-3 pb-2 text-xs text-muted-foreground truncate border-b border-border/50">{email}</div>
             <Link to="/tv" target="_blank">
@@ -170,6 +193,7 @@ const Admin = () => {
           </div>
         </aside>
 
+        {/* --- ÁREA PRINCIPAL DE CONTEÚDO (TABS) --- */}
         {/* Content */}
         <main className="flex-1 min-w-0 p-4 md:p-8">
           <div className="mb-4 flex justify-end">

@@ -1,3 +1,10 @@
+/**
+ * Aba de Gestão do Ensalamento.
+ * 
+ * Objetivo: Permite aos administradores criar, editar, excluir e reordenar as aulas.
+ * Também inclui a funcionalidade de importar planilhas (Excel/CSV) para cadastro em lote.
+ */
+
 import { useEffect, useState, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -68,7 +75,8 @@ function SortableRow({ id, children, className }: { id: string, children: React.
 }
 
 const EnsalamentoTab = () => {
-  const [rows, setRows] = useState<Ensalamento[]>([]);
+  // --- VARIÁVEIS CRÍTICAS E ESTADOS ---
+  const [rows, setRows] = useState<Ensalamento[]>([]); // Linhas da tabela
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [andarFilter, setAndarFilter] = useState("todos");
@@ -94,6 +102,8 @@ const EnsalamentoTab = () => {
     return () => clearInterval(t);
   }, []);
 
+  // --- FUNÇÕES DE BUSCA E CARREGAMENTO ---
+  // Busca as aulas no banco
   const load = async () => {
     setLoading(true);
     const { data, error } = await supabase.from("ensalamento").select("*").order("sort_order").order("turno").order("horario");
@@ -116,6 +126,7 @@ const EnsalamentoTab = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
 
+  // --- LÓGICA DE IMPORTAÇÃO DE PLANILHA ---
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -197,6 +208,7 @@ const EnsalamentoTab = () => {
     }
   };
 
+  // --- FUNÇÕES DO CRUD (Criar, Ler, Atualizar, Excluir) ---
   const openNew = () => {
     setEditing(null);
     setForm(empty);
@@ -236,6 +248,31 @@ const EnsalamentoTab = () => {
     setOpen(false); load();
   };
 
+  // --- LÓGICA DE SEPARAÇÃO DIA/HORÁRIO (NOVO LAYOUT) ---
+  const parseDay = (val: string | null) => {
+    if (!val) return { materia: "", horario: "" };
+    const timeRegex = /\b(\d{1,2}[:hH]\d{0,2}\s*[-–àaté]+\s*\d{1,2}[:hH]\d{0,2})\b/i;
+    const match = val.match(timeRegex);
+    if (match) {
+      const horario = match[1].replace(/\s*(?:[-–àaté]+)\s*/i, "-").replace(/[hH]s?/g, ":00");
+      const materia = val.replace(timeRegex, "").replace(/\s{2,}/g, " ").trim();
+      return { materia, horario };
+    }
+    return { materia: val, horario: "" };
+  };
+
+  const updateDayMateria = (day: string, materia: string) => {
+    const current = parseDay((form as any)[day]);
+    const newVal = current.horario ? `${materia} ${current.horario}` : materia;
+    setForm({ ...form, [day]: newVal });
+  };
+
+  const updateDayHorario = (day: string, horario: string) => {
+    const current = parseDay((form as any)[day]);
+    const newVal = horario ? `${current.materia} ${horario}` : current.materia;
+    setForm({ ...form, [day]: newVal });
+  };
+
   const handleDelete = async () => {
     if (!deleteId) return;
     const { error } = await supabase.from("ensalamento").delete().eq("id", deleteId);
@@ -261,6 +298,8 @@ const EnsalamentoTab = () => {
     }
   };
 
+  // --- FILTROS E PESQUISA ---
+  // Calcula andares e blocos únicos para preencher os selects de filtro
   const andaresUnicos = useMemo(() => Array.from(new Set(rows.map(r => getAndarNumero(r.sala)).filter(Boolean))).sort((a, b) => a! - b!), [rows]);
   const blocosUnicos = useMemo(() => Array.from(new Set(rows.map(r => r.bloco).filter(Boolean))).sort(), [rows]);
 
@@ -307,8 +346,10 @@ const EnsalamentoTab = () => {
     }
   };
 
+  // --- RENDERIZAÇÃO DA INTERFACE ---
   return (
     <div className="space-y-4 animate-fade-in">
+      {/* --- CABEÇALHO E FILTROS --- */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div>
           <h2 className="text-2xl font-bold">Ensalamento</h2>
@@ -322,7 +363,7 @@ const EnsalamentoTab = () => {
               {andaresUnicos.map(a => <SelectItem key={a} value={a!.toString()}>{a}º Andar</SelectItem>)}
             </SelectContent>
           </Select>
-          
+
           <Select value={blocoFilter} onValueChange={setBlocoFilter}>
             <SelectTrigger className="w-[140px]"><SelectValue placeholder="Bloco" /></SelectTrigger>
             <SelectContent>
@@ -361,6 +402,7 @@ const EnsalamentoTab = () => {
         </div>
       </div>
 
+      {/* --- TABELA DE AULAS (COM DRAG & DROP) --- */}
       <div className="glass-card overflow-hidden">
         <div className="overflow-x-auto">
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -444,6 +486,7 @@ const EnsalamentoTab = () => {
         </div>
       </div>
 
+      {/* --- MODAL DE EDIÇÃO E CRIAÇÃO --- */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto glass-strong">
           <DialogHeader><DialogTitle>{editing ? "Editar aula" : "Nova aula"}</DialogTitle></DialogHeader>
@@ -505,12 +548,31 @@ const EnsalamentoTab = () => {
             </div>
 
             <div className="space-y-2 md:col-span-2"><Label>Professor</Label><Input value={form.professor ?? ""} onChange={(e) => setForm({ ...form, professor: e.target.value })} /></div>
-            {(["segunda", "terca", "quarta", "quinta", "sexta", "sabado"] as const).map((d) => (
-              <div key={d} className="space-y-2">
-                <Label className="capitalize">{d === "terca" ? "Terça" : d === "sabado" ? "Sábado" : d}</Label>
-                <Input value={(form as any)[d] ?? ""} onChange={(e) => setForm({ ...form, [d]: e.target.value } as any)} placeholder="Disciplina" />
-              </div>
-            ))}
+            
+            <div className="md:col-span-2 mt-4"><h3 className="font-semibold border-b border-border pb-2">Dias da Semana (Disciplina e Horário Específico)</h3></div>
+            
+            {(["segunda", "terca", "quarta", "quinta", "sexta", "sabado"] as const).map((d) => {
+              const parsed = parseDay((form as any)[d]);
+              return (
+                <div key={d} className="space-y-2 md:col-span-2">
+                  <Label className="capitalize">{d === "terca" ? "Terça" : d === "sabado" ? "Sábado" : d}</Label>
+                  <div className="flex gap-2">
+                    <Input 
+                      value={parsed.materia} 
+                      onChange={(e) => updateDayMateria(d, e.target.value)} 
+                      placeholder="Nome da Disciplina" 
+                      className="flex-[2]"
+                    />
+                    <Input 
+                      value={parsed.horario} 
+                      onChange={(e) => updateDayHorario(d, e.target.value)} 
+                      placeholder="Ex: 08:00-11:20" 
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+              );
+            })}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
