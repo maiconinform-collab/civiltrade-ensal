@@ -114,6 +114,8 @@ const Admin = () => {
 
   const visibleItems = items.filter((i) => !i.superOnly || isSuperAdmin);
 
+  const tituloPrincipal = adminUnidade === 'patamares' ? 'Ensalamento - Patamares' : 'Ensalamento - Civil Trade';
+
   // --- RENDERIZAÇÃO DA INTERFACE ---
   return (
     <div className="min-h-screen gradient-mesh">
@@ -128,7 +130,7 @@ const Admin = () => {
               <GraduationCap className="w-5 h-5 text-primary-foreground" />
             </div>
           )}
-          <span className="font-bold gradient-text">{settings.brand_name}</span>
+          <span className="font-bold gradient-text">{tituloPrincipal}</span>
         </Link>
         <Button size="icon" variant="ghost" onClick={() => setSidebarOpen(true)}>
           <Menu className="w-5 h-5" />
@@ -156,7 +158,7 @@ const Admin = () => {
                 </div>
               )}
               <div>
-                <p className="font-bold leading-none gradient-text text-lg">{settings.brand_name}</p>
+                <p className="font-bold leading-tight gradient-text text-lg">{tituloPrincipal}</p>
                 <p className="text-[10px] text-muted-foreground mt-1">Painel Master</p>
               </div>
             </Link>
