@@ -1,7 +1,8 @@
 import { CrudTab } from "./CrudTab";
 
-const HorariosTab = () => (
+const HorariosTab = ({ unidade }: { unidade: string }) => (
   <CrudTab
+    unidade={unidade}
     table="horarios"
     title="Horários"
     description="Slots de horário por turno"

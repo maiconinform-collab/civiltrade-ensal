@@ -33,10 +33,11 @@ type Props = {
   fields: FieldDef[];
   columns: { key: string; label: string; render?: (v: any) => ReactNode }[];
   emptyForm: Record<string, any>;
+  unidade: string;
 };
 
 export function CrudTab({
-  title, description, table, fields, columns, emptyForm,
+  title, description, table, fields, columns, emptyForm, unidade
 }: Props) {
   const [rows, setRows] = useState<AnyRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,13 +49,13 @@ export function CrudTab({
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from(table).select("*").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from(table).select("*").eq("unidade", unidade).order("created_at", { ascending: false });
     if (error) toast.error("Erro ao carregar", { description: error.message });
     setRows(((data as unknown) as AnyRow[]) ?? []);
     setLoading(false);
   };
 
-  useEffect(() => { load(); }, [table]); // eslint-disable-line
+  useEffect(() => { load(); }, [table, unidade]); // eslint-disable-line
 
   const openNew = () => { setEditing(null); setForm(emptyForm); setOpen(true); };
   const openEdit = (r: AnyRow) => {
@@ -78,6 +79,7 @@ export function CrudTab({
       else if (fd.type === "number") payload[fd.key] = Number(v);
       else payload[fd.key] = v;
     });
+    payload.unidade = unidade;
     const tbl = supabase.from(table) as any;
     const { error } = editing
       ? await tbl.update(payload).eq("id", editing.id)

@@ -7,6 +7,7 @@ export const useUserRole = () => {
   const [userId, setUserId] = useState<string | null>(null);
   const [email, setEmail] = useState<string>("");
   const [roles, setRoles] = useState<AppRole[]>([]);
+  const [unidade, setUnidade] = useState<'trade' | 'patamares'>('trade');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -15,10 +16,15 @@ export const useUserRole = () => {
     const load = async (uid: string) => {
       const { data } = await supabase
         .from("user_roles")
-        .select("role")
+        .select("role, unidade")
         .eq("user_id", uid);
       if (!active) return;
-      setRoles(((data ?? []) as { role: AppRole }[]).map((r) => r.role));
+      
+      const userRoles = ((data ?? []) as any[]).map((r) => r.role);
+      const userUnidade = data?.[0]?.unidade ?? 'trade';
+
+      setRoles(userRoles);
+      setUnidade(userUnidade);
       setLoading(false);
     };
 
@@ -38,6 +44,7 @@ export const useUserRole = () => {
         setUserId(null);
         setEmail("");
         setRoles([]);
+        setUnidade('trade');
         setLoading(false);
         return;
       }
@@ -57,6 +64,7 @@ export const useUserRole = () => {
     userId,
     email,
     roles,
+    unidade,
     isAdmin: roles.includes("admin") || roles.includes("super_admin"),
     isSuperAdmin: roles.includes("super_admin"),
     loading,

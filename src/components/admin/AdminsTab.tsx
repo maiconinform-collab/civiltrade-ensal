@@ -34,6 +34,7 @@ const AdminsTab = ({ currentUserId }: { currentUserId: string | null }) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [role, setRole] = useState<"admin" | "super_admin">("admin");
+  const [unidade, setUnidade] = useState<"trade" | "patamares">("trade");
   const [saving, setSaving] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -52,7 +53,7 @@ const AdminsTab = ({ currentUserId }: { currentUserId: string | null }) => {
     if (password.length < 8) { toast.error("Senha deve ter no mínimo 8 caracteres"); return; }
     setSaving(true);
     const { data, error } = await supabase.functions.invoke("admin-create-user", {
-      body: { email, password, role },
+      body: { email, password, role, unidade },
     });
     setSaving(false);
     if (error || (data as any)?.error) {
@@ -60,7 +61,7 @@ const AdminsTab = ({ currentUserId }: { currentUserId: string | null }) => {
       return;
     }
     toast.success("Administrador criado");
-    setEmail(""); setPassword(""); setRole("admin"); setOpen(false); load();
+    setEmail(""); setPassword(""); setRole("admin"); setUnidade("trade"); setOpen(false); load();
   };
 
   const handleDelete = async () => {
@@ -153,15 +154,27 @@ const AdminsTab = ({ currentUserId }: { currentUserId: string | null }) => {
               <Label>Senha provisória (mín. 8 caracteres)</Label>
               <Input type="text" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Senha123!" />
             </div>
-            <div className="space-y-2">
-              <Label>Papel</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as any)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="admin">Admin</SelectItem>
-                  <SelectItem value="super_admin">Super Admin</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Papel</Label>
+                <Select value={role} onValueChange={(v) => setRole(v as any)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="super_admin">Super Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Unidade</Label>
+                <Select value={unidade} onValueChange={(v) => setUnidade(v as any)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="trade">Civil Trade</SelectItem>
+                    <SelectItem value="patamares">Patamares</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </div>
           <DialogFooter>

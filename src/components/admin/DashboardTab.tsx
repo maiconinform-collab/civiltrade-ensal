@@ -21,18 +21,21 @@ const Card = ({ icon: Icon, label, value, className = "" }: { icon: any; label: 
   </div>
 );
 
-const DashboardTab = () => {
+const DashboardTab = ({ unidade }: { unidade: string }) => {
   const [s, setS] = useState<Stats>({ aulas: 0, professores: 0, disciplinas: 0, salas: 0, horarios: 0, media_ratings: 0, total_ratings: 0, low_ratings: 0 });
 
   useEffect(() => {
+    // Reset de Dados: limpa imediatamente os contadores
+    setS({ aulas: 0, professores: 0, disciplinas: 0, salas: 0, horarios: 0, media_ratings: 0, total_ratings: 0, low_ratings: 0 });
+    
     const load = async () => {
       const [a, p, d, sa, h, rt] = await Promise.all([
-        supabase.from("ensalamento").select("id", { count: "exact", head: true }),
-        supabase.from("professores").select("id", { count: "exact", head: true }),
-        supabase.from("disciplinas").select("id", { count: "exact", head: true }),
-        supabase.from("salas").select("id", { count: "exact", head: true }),
-        supabase.from("horarios").select("id", { count: "exact", head: true }),
-        supabase.from("ratings").select("rating")
+        supabase.from("ensalamento").select("id", { count: "exact", head: true }).eq("unidade", unidade),
+        supabase.from("professores").select("id", { count: "exact", head: true }).eq("unidade", unidade),
+        supabase.from("disciplinas").select("id", { count: "exact", head: true }).eq("unidade", unidade),
+        supabase.from("salas").select("id", { count: "exact", head: true }).eq("unidade", unidade),
+        supabase.from("horarios").select("id", { count: "exact", head: true }).eq("unidade", unidade),
+        supabase.from("ratings").select("rating").eq("unidade", unidade)
       ]);
       
       let media = 0;
@@ -50,7 +53,7 @@ const DashboardTab = () => {
       });
     };
     load();
-  }, []);
+  }, [unidade]);
 
   return (
     <div className="space-y-6 animate-fade-in">

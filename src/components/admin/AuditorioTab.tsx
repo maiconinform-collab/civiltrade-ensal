@@ -32,7 +32,7 @@ const toLocalInput = (iso: string) => {
 
 const empty = { nome: "", responsavel: "", descricao: "", inicio: "", fim: "", local: "Auditório Principal" };
 
-const AuditorioTab = () => {
+const AuditorioTab = ({ unidade }: { unidade: string }) => {
   const [rows, setRows] = useState<Evento[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -42,12 +42,12 @@ const AuditorioTab = () => {
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("auditorio_eventos").select("*").order("inicio", { ascending: true });
+    const { data, error } = await supabase.from("auditorio_eventos").select("*").eq("unidade", unidade).order("inicio", { ascending: true });
     if (error) toast.error("Erro ao carregar", { description: error.message });
     setRows((data as Evento[]) ?? []);
     setLoading(false);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [unidade]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
@@ -91,7 +91,8 @@ const AuditorioTab = () => {
           descricao: normalizedRow.descricao || null,
           inicio,
           fim,
-          local: normalizedRow.local || "Auditório Principal"
+          local: normalizedRow.local || "Auditório Principal",
+          unidade
         };
       }).filter(r => r.nome !== "Evento Sem Nome");
 
@@ -132,6 +133,7 @@ const AuditorioTab = () => {
       nome: form.nome, responsavel: form.responsavel || null, descricao: form.descricao || null,
       inicio: new Date(form.inicio).toISOString(), fim: new Date(form.fim).toISOString(),
       local: form.local || null,
+      unidade,
     };
     const { error } = editing
       ? await supabase.from("auditorio_eventos").update(payload).eq("id", editing.id)

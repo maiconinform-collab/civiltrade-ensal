@@ -48,30 +48,47 @@ const Index = () => {
           </div>
 
           {/* --- OPÇÕES DE NAVEGAÇÃO (CARDS) --- */}
-          <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto">
-            <Link to="/tv" className="group">
+          <div className="grid md:grid-cols-2 gap-6 max-w-3xl mx-auto mb-6">
+            <Link to="/trade/tv" className="group">
               <div className="glass-card p-8 transition-smooth group-hover:scale-[1.02] h-full">
                 <div className="w-14 h-14 rounded-xl gradient-brand flex items-center justify-center mb-5 group-hover:scale-110 transition-smooth shadow-brand">
                   <Monitor className="w-7 h-7 text-primary-foreground" />
                 </div>
-                <h2 className="text-2xl font-bold mb-2">Painel TV / Kiosk</h2>
+                <h2 className="text-2xl font-bold mb-2">Painel Civil Trade</h2>
                 <p className="text-muted-foreground mb-5">
-                  Visualização em tela cheia com as aulas de hoje, status em tempo real.
+                  Aulas e eventos da unidade Civil Trade em tempo real.
                 </p>
                 <Button className="w-full gradient-brand border-0 shadow-brand">Abrir Painel</Button>
               </div>
             </Link>
 
-            <Link to="/admin" className="group">
-              <div className="glass-card p-8 transition-smooth group-hover:scale-[1.02] h-full">
-                <div className="w-14 h-14 rounded-xl bg-primary/10 flex items-center justify-center mb-5 group-hover:scale-110 transition-smooth">
-                  <Settings className="w-7 h-7 text-primary" />
+            <Link to="/patamares/tv" className="group">
+              <div className="glass-card p-8 transition-smooth group-hover:scale-[1.02] h-full border-blue-500/30">
+                <div className="w-14 h-14 rounded-xl bg-blue-600 flex items-center justify-center mb-5 group-hover:scale-110 transition-smooth shadow-lg shadow-blue-500/20">
+                  <Monitor className="w-7 h-7 text-white" />
                 </div>
-                <h2 className="text-2xl font-bold mb-2">Área Administrativa</h2>
+                <h2 className="text-2xl font-bold mb-2">Painel Patamares</h2>
                 <p className="text-muted-foreground mb-5">
-                  Gerencie salas, horários, professores e usuários administradores.
+                  Aulas e eventos da unidade Patamares em tempo real.
                 </p>
-                <Button variant="outline" className="w-full">Acessar Admin</Button>
+                <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white border-0 shadow-lg shadow-blue-500/20">Abrir Painel</Button>
+              </div>
+            </Link>
+          </div>
+          
+          <div className="max-w-3xl mx-auto">
+            <Link to="/admin" className="group">
+              <div className="glass-card p-6 flex items-center gap-6 transition-smooth group-hover:scale-[1.01]">
+                <div className="w-12 h-12 rounded-xl bg-primary/10 flex-shrink-0 flex items-center justify-center group-hover:scale-110 transition-smooth">
+                  <Settings className="w-6 h-6 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <h2 className="text-xl font-bold">Área Administrativa Central</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Gerencie o ensalamento, auditório e avisos de todas as unidades.
+                  </p>
+                </div>
+                <Button variant="outline" className="hidden sm:flex">Acessar Admin</Button>
               </div>
             </Link>
           </div>

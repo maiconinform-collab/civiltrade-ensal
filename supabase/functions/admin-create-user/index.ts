@@ -49,7 +49,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const { email, password, role = "admin" } = body;
+    const { email, password, role = "admin", unidade = "trade" } = body;
     if (!email || !password) {
       return new Response(JSON.stringify({ error: "E-mail e senha obrigatórios" }), {
         status: 400,
@@ -72,6 +72,7 @@ Deno.serve(async (req) => {
     const { error: roleInsErr } = await admin.from("user_roles").insert({
       user_id: created.user.id,
       role,
+      unidade,
     });
     if (roleInsErr) {
       return new Response(JSON.stringify({ error: roleInsErr.message }), {

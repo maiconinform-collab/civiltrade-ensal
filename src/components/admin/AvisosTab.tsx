@@ -20,7 +20,7 @@ import { toast } from "sonner";
 
 type Aviso = { id: string; texto: string; ativo: boolean; ordem: number };
 
-const AvisosTab = () => {
+const AvisosTab = ({ unidade }: { unidade: string }) => {
   const [rows, setRows] = useState<Aviso[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -30,19 +30,19 @@ const AvisosTab = () => {
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("avisos").select("*").order("ordem").order("created_at", { ascending: false });
+    const { data, error } = await supabase.from("avisos").select("*").eq("unidade", unidade).order("ordem").order("created_at", { ascending: false });
     if (error) toast.error("Erro ao carregar", { description: error.message });
     setRows((data as Aviso[]) ?? []);
     setLoading(false);
   };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [unidade]);
 
   const openNew = () => { setEditing(null); setForm({ texto: "", ativo: true, ordem: 0 }); setOpen(true); };
   const openEdit = (r: Aviso) => { setEditing(r); setForm({ texto: r.texto, ativo: r.ativo, ordem: r.ordem }); setOpen(true); };
 
   const handleSave = async () => {
     if (!form.texto.trim()) { toast.error("Digite o texto do aviso"); return; }
-    const payload = { texto: form.texto.trim(), ativo: form.ativo, ordem: Number(form.ordem) || 0 };
+    const payload = { texto: form.texto.trim(), ativo: form.ativo, ordem: Number(form.ordem) || 0, unidade };
     const { error } = editing
       ? await supabase.from("avisos").update(payload).eq("id", editing.id)
       : await supabase.from("avisos").insert(payload);

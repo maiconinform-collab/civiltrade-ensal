@@ -41,13 +41,22 @@ const Admin = () => {
   const { settings } = useSettings(); // Puxa logo e nome do banco
   
   // Hook customizado que verifica o perfil do usuário logado (se é admin ou super_admin)
-  const { userId, email, isAdmin, isSuperAdmin, loading } = useUserRole();
+  const { userId, email, isAdmin, isSuperAdmin, unidade: userUnidade, loading } = useUserRole();
   
   // Aba atualmente selecionada no menu (default: dashboard)
   const [tab, setTab] = useState<TabKey>("dashboard");
   
   // Controle de abertura do menu no celular (mobile)
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Unidade atualmente sendo gerenciada
+  const [adminUnidade, setAdminUnidade] = useState<'trade' | 'patamares'>('trade');
+
+  useEffect(() => {
+    if (userUnidade) {
+      setAdminUnidade(userUnidade as 'trade' | 'patamares');
+    }
+  }, [userUnidade]);
 
   // --- CONTROLE DE ACESSO (PROTECTED ROUTE) ---
   // Se não estiver carregando e o usuário não existir, chuta para o login
@@ -196,21 +205,33 @@ const Admin = () => {
         {/* --- ÁREA PRINCIPAL DE CONTEÚDO (TABS) --- */}
         {/* Content */}
         <main className="flex-1 min-w-0 p-4 md:p-8">
-          <div className="mb-4 flex justify-end">
-            <Link to="/tv">
+          <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="glass-card px-4 py-2 inline-flex items-center gap-3 w-fit">
+              <span className="text-sm font-semibold text-muted-foreground whitespace-nowrap">Gerenciando Unidade:</span>
+              <select 
+                value={adminUnidade}
+                onChange={(e) => setAdminUnidade(e.target.value as 'trade' | 'patamares')}
+                className={`bg-transparent font-bold text-primary border-none outline-none ${isSuperAdmin ? 'cursor-pointer' : 'cursor-not-allowed opacity-80'}`}
+                disabled={!isSuperAdmin}
+              >
+                <option value="trade">Civil Trade</option>
+                <option value="patamares">Patamares</option>
+              </select>
+            </div>
+            <Link to={`/${adminUnidade}/tv`}>
               <Button variant="outline" size="sm" className="hover:border-primary hover:text-primary">
                 <Monitor className="w-4 h-4 mr-2" /> ← Sair para a TV
               </Button>
             </Link>
           </div>
-          {tab === "dashboard" && <DashboardTab />}
-          {tab === "ensalamento" && <EnsalamentoTab />}
-          {tab === "auditorio" && <AuditorioTab />}
-          {tab === "avisos" && <AvisosTab />}
-          {tab === "professores" && <ProfessoresTab />}
-          {tab === "disciplinas" && <DisciplinasTab />}
-          {tab === "salas" && <SalasTab />}
-          {tab === "horarios" && <HorariosTab />}
+          {tab === "dashboard" && <DashboardTab unidade={adminUnidade} />}
+          {tab === "ensalamento" && <EnsalamentoTab unidade={adminUnidade} />}
+          {tab === "auditorio" && <AuditorioTab unidade={adminUnidade} />}
+          {tab === "avisos" && <AvisosTab unidade={adminUnidade} />}
+          {tab === "professores" && <ProfessoresTab unidade={adminUnidade} />}
+          {tab === "disciplinas" && <DisciplinasTab unidade={adminUnidade} />}
+          {tab === "salas" && <SalasTab unidade={adminUnidade} />}
+          {tab === "horarios" && <HorariosTab unidade={adminUnidade} />}
           {tab === "perfil" && <PerfilTab />}
           {tab === "admins" && isSuperAdmin && <AdminsTab currentUserId={userId} />}
           {tab === "settings" && isSuperAdmin && <SettingsTab />}

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Link } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { GraduationCap, MapPin, Clock, User, Mic, Radio, AlertTriangle, Building2, ArrowLeft } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { siteConfig } from "@/config/siteConfig";
@@ -37,6 +37,8 @@ type FilterMode = "todas" | "ao-vivo" | number; // number = andar
 
 const TVKiosk = () => {
   const { settings } = useSettings();
+  const { unidade } = useParams<{ unidade: string }>();
+  const currentUnidade = unidade === 'patamares' ? 'patamares' : 'trade';
   const [rows, setRows] = useState<Ensalamento[]>([]);
   const [eventos, setEventos] = useState<Evento[]>([]);
   const [avisos, setAvisos] = useState<Aviso[]>([]);
@@ -54,9 +56,9 @@ const TVKiosk = () => {
   const load = async () => {
     try {
       const [ens, ev, av] = await Promise.all([
-        supabase.from("ensalamento").select("*").order("turno").order("horario"),
-        supabase.from("auditorio_eventos").select("*").gte("fim", new Date().toISOString()).order("inicio").limit(10),
-        supabase.from("avisos").select("*").eq("ativo", true).order("ordem"),
+        supabase.from("ensalamento").select("*").eq("unidade", currentUnidade).order("turno").order("horario"),
+        supabase.from("auditorio_eventos").select("*").eq("unidade", currentUnidade).gte("fim", new Date().toISOString()).order("inicio").limit(10),
+        supabase.from("avisos").select("*").eq("unidade", currentUnidade).eq("ativo", true).order("ordem"),
       ]);
 
       console.log('Dados recebidos (Ensalamento):', ens.data);

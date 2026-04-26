@@ -1,7 +1,8 @@
 import { CrudTab } from "./CrudTab";
 
-const SalasTab = () => (
+const SalasTab = ({ unidade }: { unidade: string }) => (
   <CrudTab
+    unidade={unidade}
     table="salas"
     title="Salas"
     description="Cadastro de salas físicas"

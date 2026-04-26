@@ -74,7 +74,7 @@ function SortableRow({ id, children, className }: { id: string, children: React.
   );
 }
 
-const EnsalamentoTab = () => {
+const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   // --- VARIÁVEIS CRÍTICAS E ESTADOS ---
   const [rows, setRows] = useState<Ensalamento[]>([]); // Linhas da tabela
   const [loading, setLoading] = useState(true);
@@ -106,7 +106,7 @@ const EnsalamentoTab = () => {
   // Busca as aulas no banco
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from("ensalamento").select("*").order("sort_order").order("turno").order("horario");
+    const { data, error } = await supabase.from("ensalamento").select("*").eq("unidade", unidade).order("sort_order").order("turno").order("horario");
     if (error) toast.error("Erro ao carregar", { description: error.message });
     setRows((data as Ensalamento[]) ?? []);
     setLoading(false);
@@ -121,7 +121,7 @@ const EnsalamentoTab = () => {
     setHorariosOptions((horariosRes.data as HorarioOption[]) ?? []);
   };
 
-  useEffect(() => { load(); loadOptions(); }, []);
+  useEffect(() => { load(); loadOptions(); }, [unidade]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
@@ -179,7 +179,8 @@ const EnsalamentoTab = () => {
           quinta: normalizedRow.quinta || null,
           sexta: normalizedRow.sexta || null,
           sabado: normalizedRow.sabado || null,
-          sort_order: 0
+          sort_order: 0,
+          unidade
         };
       }).filter(r => r.sala && r.horario && r.sala !== "undefined" && r.horario !== "undefined"); // only valid rows
 
@@ -239,6 +240,7 @@ const EnsalamentoTab = () => {
       bloco: form.bloco || null, professor: form.professor || null,
       segunda: form.segunda || null, terca: form.terca || null, quarta: form.quarta || null,
       quinta: form.quinta || null, sexta: form.sexta || null, sabado: form.sabado || null,
+      unidade,
     };
     const { error } = editing
       ? await supabase.from("ensalamento").update(payload).eq("id", editing.id)
@@ -548,25 +550,25 @@ const EnsalamentoTab = () => {
             </div>
 
             <div className="space-y-2 md:col-span-2"><Label>Professor</Label><Input value={form.professor ?? ""} onChange={(e) => setForm({ ...form, professor: e.target.value })} /></div>
-            
+
             <div className="md:col-span-2 mt-4"><h3 className="font-semibold border-b border-border pb-2">Dias da Semana (Disciplina e Horário Específico)</h3></div>
-            
+
             {(["segunda", "terca", "quarta", "quinta", "sexta", "sabado"] as const).map((d) => {
               const parsed = parseDay((form as any)[d]);
               return (
                 <div key={d} className="space-y-2 md:col-span-2">
                   <Label className="capitalize">{d === "terca" ? "Terça" : d === "sabado" ? "Sábado" : d}</Label>
                   <div className="flex gap-2">
-                    <Input 
-                      value={parsed.materia} 
-                      onChange={(e) => updateDayMateria(d, e.target.value)} 
-                      placeholder="Nome da Disciplina" 
+                    <Input
+                      value={parsed.materia}
+                      onChange={(e) => updateDayMateria(d, e.target.value)}
+                      placeholder="Nome da Disciplina"
                       className="flex-[2]"
                     />
-                    <Input 
-                      value={parsed.horario} 
-                      onChange={(e) => updateDayHorario(d, e.target.value)} 
-                      placeholder="Ex: 08:00-11:20" 
+                    <Input
+                      value={parsed.horario}
+                      onChange={(e) => updateDayHorario(d, e.target.value)}
+                      placeholder="Ex: 08:00-11:20"
                       className="flex-1"
                     />
                   </div>
