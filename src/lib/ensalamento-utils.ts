@@ -5,21 +5,32 @@
 
 /* ── Parser de horário ─────────────────────────────── */
 
-export const parseHorario = (h: string) => {
-  const m = h.match(/(\d{1,2}):?(\d{2})\s*[-–]\s*(\d{1,2}):?(\d{2})/);
-  if (!m) return null;
-  return {
-    start: parseInt(m[1]) * 60 + parseInt(m[2]),
-    end: parseInt(m[3]) * 60 + parseInt(m[4]),
-  };
+export const parseHorario = (h: string, singleTimeDurationMinutes = 60) => {
+  const rangeMatch = h.match(/(\d{1,2}):?(\d{2})\s*[-–]\s*(\d{1,2}):?(\d{2})/);
+  if (rangeMatch) {
+    return {
+      start: parseInt(rangeMatch[1]) * 60 + parseInt(rangeMatch[2]),
+      end: parseInt(rangeMatch[3]) * 60 + parseInt(rangeMatch[4]),
+    };
+  }
+
+  // Suporte para horário pontual (ex: "08:53").
+  // Assumimos 60 minutos de duração para permitir status "ao vivo".
+  const singleMatch = h.match(/\b(\d{1,2}):(\d{2})\b/);
+  if (singleMatch) {
+    const start = parseInt(singleMatch[1]) * 60 + parseInt(singleMatch[2]);
+    return { start, end: start + singleTimeDurationMinutes };
+  }
+
+  return null;
 };
 
 /* ── Status da aula ────────────────────────────────── */
 
 export type Status = "now" | "next" | "scheduled" | "done";
 
-export const statusFor = (h: string, now: Date): Status => {
-  const p = parseHorario(h);
+export const statusFor = (h: string, now: Date, singleTimeDurationMinutes = 60): Status => {
+  const p = parseHorario(h, singleTimeDurationMinutes);
   if (!p) return "scheduled";
   
   // Força o cálculo baseado no fuso de Brasília, ignorando a configuração local do dispositivo

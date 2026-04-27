@@ -7,6 +7,7 @@ type Settings = {
   logo_url: string;
   primary_color: string;   // HSL "h s% l%"
   secondary_color: string;
+  single_time_duration_minutes: number;
 };
 
 const DEFAULTS: Settings = {
@@ -15,6 +16,7 @@ const DEFAULTS: Settings = {
   logo_url: "",
   primary_color: "336 78% 56%",
   secondary_color: "280 65% 55%",
+  single_time_duration_minutes: 60,
 };
 
 type Ctx = {
@@ -39,8 +41,14 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     if (!data) return;
     const next: Settings = { ...DEFAULTS };
     for (const row of data as Array<{ key: string; value: unknown }>) {
+      if (!(row.key in next)) continue;
+      if (row.key === "single_time_duration_minutes") {
+        const parsed = Number(row.value);
+        (next as any)[row.key] = Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULTS.single_time_duration_minutes;
+        continue;
+      }
       const v = row.value as string;
-      if (row.key in next) (next as any)[row.key] = v ?? "";
+      (next as any)[row.key] = v ?? "";
     }
     setSettings(next);
     applyCssVars(next);

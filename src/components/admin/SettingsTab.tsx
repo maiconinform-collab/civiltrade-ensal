@@ -58,6 +58,9 @@ const SettingsTab = () => {
   const [unitName, setUnitName] = useState(settings.unit_name);
   const [primaryHex, setPrimaryHex] = useState(hslToHex(settings.primary_color));
   const [secondaryHex, setSecondaryHex] = useState(hslToHex(settings.secondary_color));
+  const [singleTimeDurationMinutes, setSingleTimeDurationMinutes] = useState(
+    String(settings.single_time_duration_minutes ?? 60)
+  );
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -69,6 +72,10 @@ const SettingsTab = () => {
       { key: "unit_name", value: JSON.stringify(unitName) },
       { key: "primary_color", value: JSON.stringify(hexToHsl(primaryHex)) },
       { key: "secondary_color", value: JSON.stringify(hexToHsl(secondaryHex)) },
+      {
+        key: "single_time_duration_minutes",
+        value: JSON.stringify(Math.max(1, Number(singleTimeDurationMinutes) || 60)),
+      },
     ];
     for (const u of updates) {
       const { error } = await supabase
@@ -123,6 +130,16 @@ const SettingsTab = () => {
           <div className="space-y-2">
             <Label>Nome da unidade</Label>
             <Input value={unitName} onChange={(e) => setUnitName(e.target.value)} placeholder="Unidade Principal" />
+          </div>
+          <div className="space-y-2">
+            <Label>Duração padrão para horário simples (min)</Label>
+            <Input
+              type="number"
+              min={1}
+              value={singleTimeDurationMinutes}
+              onChange={(e) => setSingleTimeDurationMinutes(e.target.value)}
+              placeholder="60"
+            />
           </div>
         </div>
       </div>

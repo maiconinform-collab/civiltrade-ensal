@@ -94,6 +94,7 @@ const TVKiosk = () => {
   }, []);
 
   const today = dayKey(now);
+  const singleTimeDurationMinutes = settings.single_time_duration_minutes ?? 60;
 
   // Sorted by sort_order, then by room number (ascending)
   const sorted = useMemo(() => {
@@ -135,16 +136,16 @@ const TVKiosk = () => {
   // Apply filters
   const displayed = useMemo(() => {
     if (filter === "todas") return sorted;
-    if (filter === "ao-vivo") return sorted.filter((r) => statusFor(r.horario, now) === "now");
+    if (filter === "ao-vivo") return sorted.filter((r) => statusFor(r.horario, now, singleTimeDurationMinutes) === "now");
     // filter is a floor number
     return sorted.filter((r) => getAndarNumero(r.sala) === filter);
-  }, [sorted, filter, now]);
+  }, [sorted, filter, now, singleTimeDurationMinutes]);
 
   const dateStr = now.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long", year: "numeric" });
   const timeStr = now.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 
-  const ocorrendo = sorted.filter((r) => statusFor(r.horario, now) === "now").length;
-  const proximas = sorted.filter((r) => statusFor(r.horario, now) === "next").length;
+  const ocorrendo = sorted.filter((r) => statusFor(r.horario, now, singleTimeDurationMinutes) === "now").length;
+  const proximas = sorted.filter((r) => statusFor(r.horario, now, singleTimeDurationMinutes) === "next").length;
 
   // Marquee text
   const marqueeText = avisos.length
@@ -285,7 +286,7 @@ const TVKiosk = () => {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5 h-full content-start overflow-y-auto pr-1">
               {displayed.slice(0, 18).map((r) => {
-                const st = statusFor(r.horario, now);
+                const st = statusFor(r.horario, now, singleTimeDurationMinutes);
                 const isNow = st === "now";
                 const isNext = st === "next";
                 const isDone = st === "done";
