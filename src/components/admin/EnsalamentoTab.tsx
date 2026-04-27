@@ -56,6 +56,8 @@ const turnoLabels: Record<string, string> = {
 };
 
 const DAY_FIELD_SEPARATOR = "|||";
+const DAY_TIME_RANGE_REGEX = /\b(\d{1,2}[:hH]\d{0,2}\s*[-–àaté]+\s*\d{1,2}[:hH]\d{0,2})\b/i;
+const DAY_TIME_SINGLE_REGEX = /\b(\d{1,2}[:hH]\d{2})\b/i;
 
 function SortableRow({ id, children, className }: { id: string, children: React.ReactNode, className?: string }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
@@ -221,12 +223,30 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   };
 
   const openEdit = (r: Ensalamento) => {
+    const normalizeDayForEditing = (val: string | null) => {
+      if (!val) return "";
+      if (val.includes(DAY_FIELD_SEPARATOR)) return val;
+      const rangeMatch = val.match(DAY_TIME_RANGE_REGEX);
+      if (rangeMatch) {
+        const horario = rangeMatch[1].replace(/\s*(?:[-–àaté]+)\s*/i, "-").replace(/[hH]s?/g, ":00");
+        const materia = val.replace(DAY_TIME_RANGE_REGEX, "").replace(/\s{2,}/g, " ").trim();
+        return `${materia}${DAY_FIELD_SEPARATOR}${horario}`;
+      }
+      const singleMatch = val.match(DAY_TIME_SINGLE_REGEX);
+      if (singleMatch) {
+        const horario = singleMatch[1].replace(/[hH]/g, ":");
+        const materia = val.replace(DAY_TIME_SINGLE_REGEX, "").replace(/\s{2,}/g, " ").trim();
+        return `${materia}${DAY_FIELD_SEPARATOR}${horario}`;
+      }
+      return `${val.trim()}${DAY_FIELD_SEPARATOR}`;
+    };
+
     setEditing(r);
     setForm({
       sala: r.sala, bloco: r.bloco ?? "", turno: r.turno, horario: r.horario,
       professor: r.professor ?? "",
-      segunda: r.segunda ?? "", terca: r.terca ?? "", quarta: r.quarta ?? "",
-      quinta: r.quinta ?? "", sexta: r.sexta ?? "", sabado: r.sabado ?? "",
+      segunda: normalizeDayForEditing(r.segunda), terca: normalizeDayForEditing(r.terca), quarta: normalizeDayForEditing(r.quarta),
+      quinta: normalizeDayForEditing(r.quinta), sexta: normalizeDayForEditing(r.sexta), sabado: normalizeDayForEditing(r.sabado),
     });
     const salaExists = salasOptions.some((s) => s.nome === r.sala);
     setSalaCustom(!salaExists);
@@ -270,11 +290,16 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       const [materiaRaw, horarioRaw] = val.split(DAY_FIELD_SEPARATOR, 2);
       return { materia: materiaRaw?.trim() ?? "", horario: horarioRaw?.trim() ?? "" };
     }
-    const timeRegex = /\b(\d{1,2}[:hH]\d{0,2}\s*[-–àaté]+\s*\d{1,2}[:hH]\d{0,2})\b/i;
-    const match = val.match(timeRegex);
-    if (match) {
-      const horario = match[1].replace(/\s*(?:[-–àaté]+)\s*/i, "-").replace(/[hH]s?/g, ":00");
-      const materia = val.replace(timeRegex, "").replace(/\s{2,}/g, " ").trim();
+    const rangeMatch = val.match(DAY_TIME_RANGE_REGEX);
+    if (rangeMatch) {
+      const horario = rangeMatch[1].replace(/\s*(?:[-–àaté]+)\s*/i, "-").replace(/[hH]s?/g, ":00");
+      const materia = val.replace(DAY_TIME_RANGE_REGEX, "").replace(/\s{2,}/g, " ").trim();
+      return { materia, horario };
+    }
+    const singleMatch = val.match(DAY_TIME_SINGLE_REGEX);
+    if (singleMatch) {
+      const horario = singleMatch[1].replace(/[hH]/g, ":");
+      const materia = val.replace(DAY_TIME_SINGLE_REGEX, "").replace(/\s{2,}/g, " ").trim();
       return { materia, horario };
     }
     return { materia: val, horario: "" };
