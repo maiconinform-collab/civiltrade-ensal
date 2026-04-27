@@ -55,6 +55,8 @@ const turnoLabels: Record<string, string> = {
   manha: "Manhã", tarde: "Tarde", noite: "Noite", integral: "Integral",
 };
 
+const DAY_FIELD_SEPARATOR = "|||";
+
 function SortableRow({ id, children, className }: { id: string, children: React.ReactNode, className?: string }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
   const style = {
@@ -235,11 +237,22 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
   const handleSave = async () => {
     if (!form.sala || !form.horario || !form.turno) { toast.error("Preencha sala, turno e horário"); return; }
+    const sanitizeDayField = (val: string | null) => {
+      if (!val) return null;
+      if (!val.includes(DAY_FIELD_SEPARATOR)) return val || null;
+      const [materiaRaw, horarioRaw] = val.split(DAY_FIELD_SEPARATOR, 2);
+      const materia = materiaRaw?.trim() ?? "";
+      const horario = horarioRaw?.trim() ?? "";
+      if (!materia && !horario) return null;
+      if (!materia) return horario;
+      if (!horario) return materia;
+      return `${materia} ${horario}`;
+    };
     const payload = {
       ...form,
       bloco: form.bloco || null, professor: form.professor || null,
-      segunda: form.segunda || null, terca: form.terca || null, quarta: form.quarta || null,
-      quinta: form.quinta || null, sexta: form.sexta || null, sabado: form.sabado || null,
+      segunda: sanitizeDayField(form.segunda), terca: sanitizeDayField(form.terca), quarta: sanitizeDayField(form.quarta),
+      quinta: sanitizeDayField(form.quinta), sexta: sanitizeDayField(form.sexta), sabado: sanitizeDayField(form.sabado),
       unidade,
     };
     const { error } = editing
@@ -253,6 +266,10 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   // --- LÓGICA DE SEPARAÇÃO DIA/HORÁRIO (NOVO LAYOUT) ---
   const parseDay = (val: string | null) => {
     if (!val) return { materia: "", horario: "" };
+    if (val.includes(DAY_FIELD_SEPARATOR)) {
+      const [materiaRaw, horarioRaw] = val.split(DAY_FIELD_SEPARATOR, 2);
+      return { materia: materiaRaw?.trim() ?? "", horario: horarioRaw?.trim() ?? "" };
+    }
     const timeRegex = /\b(\d{1,2}[:hH]\d{0,2}\s*[-–àaté]+\s*\d{1,2}[:hH]\d{0,2})\b/i;
     const match = val.match(timeRegex);
     if (match) {
@@ -265,13 +282,13 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
   const updateDayMateria = (day: string, materia: string) => {
     const current = parseDay((form as any)[day]);
-    const newVal = current.horario ? `${materia} ${current.horario}` : materia;
+    const newVal = `${materia}${DAY_FIELD_SEPARATOR}${current.horario}`;
     setForm({ ...form, [day]: newVal });
   };
 
   const updateDayHorario = (day: string, horario: string) => {
     const current = parseDay((form as any)[day]);
-    const newVal = horario ? `${current.materia} ${horario}` : current.materia;
+    const newVal = `${current.materia}${DAY_FIELD_SEPARATOR}${horario}`;
     setForm({ ...form, [day]: newVal });
   };
 
