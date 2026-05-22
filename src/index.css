@@ -1,0 +1,365 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Afya Premium Design System — Glassmorphism + Mesh Gradient */
+
+@layer base {
+  :root {
+    --background: 220 33% 98%;
+    --foreground: 270 25% 12%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 270 25% 12%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 270 25% 12%;
+
+    /* Afya Pink — dinamicamente sobrescrito por settings */
+    --primary: 336 78% 56%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 336 90% 70%;
+    --primary-soft: 336 78% 96%;
+
+    /* Roxo do tema OKLCH */
+    --secondary: 280 65% 55%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-glow: 280 80% 70%;
+
+    --muted: 270 20% 96%;
+    --muted-foreground: 270 10% 40%;
+
+    --accent: 336 78% 96%;
+    --accent-foreground: 336 78% 40%;
+
+    --success: 160 70% 42%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 95% 55%;
+    --warning-foreground: 0 0% 100%;
+
+    --destructive: 12 80% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 18% 92%;
+    --input: 220 18% 92%;
+    --ring: 336 78% 56%;
+
+    --radius: 0.75rem;
+
+    /* Glass tokens */
+    --glass-bg: 0 0% 100% / 0.55;
+    --glass-border: 0 0% 100% / 0.6;
+    --glass-shadow: 336 60% 30% / 0.12;
+
+    /* Gradientes */
+    --gradient-primary: linear-gradient(135deg, hsl(336 78% 56%), hsl(336 90% 68%));
+    --gradient-brand: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--secondary)));
+    --gradient-mesh:
+      radial-gradient(at 12% 18%, hsl(var(--primary) / 0.55) 0px, transparent 55%),
+      radial-gradient(at 88% 12%, hsl(var(--secondary) / 0.45) 0px, transparent 55%),
+      radial-gradient(at 75% 88%, hsl(210 80% 60% / 0.4) 0px, transparent 55%),
+      radial-gradient(at 18% 82%, hsl(336 78% 65% / 0.45) 0px, transparent 55%),
+      linear-gradient(180deg, hsl(220 33% 98%), hsl(280 30% 96%));
+    --gradient-mesh-dark:
+      radial-gradient(at 12% 18%, hsl(var(--primary) / 0.45) 0px, transparent 55%),
+      radial-gradient(at 88% 12%, hsl(var(--secondary) / 0.4) 0px, transparent 55%),
+      radial-gradient(at 75% 88%, hsl(210 80% 50% / 0.35) 0px, transparent 55%),
+      radial-gradient(at 18% 82%, hsl(336 78% 50% / 0.35) 0px, transparent 55%),
+      linear-gradient(180deg, hsl(270 30% 8%), hsl(280 35% 6%));
+
+    --shadow-sm: 0 2px 8px -2px hsl(336 50% 30% / 0.08);
+    --shadow-md: 0 6px 20px -6px hsl(336 50% 30% / 0.12);
+    --shadow-lg: 0 12px 40px -10px hsl(336 50% 30% / 0.18);
+    --shadow-glow: 0 0 32px hsl(var(--primary) / 0.35);
+    --shadow-brand: 0 20px 60px -20px hsl(var(--primary) / 0.4);
+
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 270 25% 12%;
+    --sidebar-primary: 336 78% 56%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 336 78% 96%;
+    --sidebar-accent-foreground: 336 78% 40%;
+    --sidebar-border: 220 18% 92%;
+    --sidebar-ring: 336 78% 56%;
+  }
+
+  .dark {
+    --background: 270 30% 8%;
+    --foreground: 220 20% 96%;
+
+    --card: 270 25% 12%;
+    --card-foreground: 220 20% 96%;
+
+    --popover: 270 25% 12%;
+    --popover-foreground: 220 20% 96%;
+
+    --primary: 336 78% 60%;
+    --primary-foreground: 0 0% 100%;
+    --primary-glow: 336 90% 70%;
+    --primary-soft: 336 40% 18%;
+
+    --secondary: 280 65% 60%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 270 20% 16%;
+    --muted-foreground: 270 10% 65%;
+
+    --accent: 336 40% 22%;
+    --accent-foreground: 336 78% 80%;
+
+    --destructive: 12 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 270 20% 20%;
+    --input: 270 20% 20%;
+    --ring: 336 78% 60%;
+
+    --glass-bg: 270 25% 14% / 0.6;
+    --glass-border: 270 30% 30% / 0.4;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    font-family: 'Outfit', system-ui, -apple-system, sans-serif;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .gradient-primary {
+    background: var(--gradient-primary);
+  }
+
+  .gradient-brand {
+    background: var(--gradient-brand);
+  }
+
+  .gradient-mesh {
+    background: var(--gradient-mesh);
+    background-size: 200% 200%;
+  }
+
+  .gradient-mesh-dark {
+    background: var(--gradient-mesh-dark);
+    background-size: 200% 200%;
+  }
+
+  .gradient-text {
+    @apply bg-clip-text text-transparent;
+    background-image: var(--gradient-brand);
+  }
+
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  .shadow-brand {
+    box-shadow: var(--shadow-brand);
+  }
+
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+
+  /* Glassmorphism */
+  .glass {
+    background: hsl(var(--glass-bg));
+    backdrop-filter: blur(20px) saturate(180%);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid hsl(var(--glass-border));
+  }
+
+  .glass-card {
+    @apply glass rounded-2xl;
+    box-shadow:
+      0 8px 32px -8px hsl(var(--glass-shadow)),
+      inset 0 1px 0 hsl(0 0% 100% / 0.5);
+  }
+
+  .glass-strong {
+    background: hsl(var(--glass-bg));
+    backdrop-filter: blur(32px) saturate(200%);
+    -webkit-backdrop-filter: blur(32px) saturate(200%);
+    border: 1px solid hsl(var(--glass-border));
+  }
+}
+
+/* ==== Animações ==== */
+@keyframes pulse-ring {
+  0% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0.5);
+  }
+
+  70% {
+    box-shadow: 0 0 0 14px hsl(var(--primary) / 0);
+  }
+
+  100% {
+    box-shadow: 0 0 0 0 hsl(var(--primary) / 0);
+  }
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2s infinite;
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.6s ease-out both;
+}
+
+@keyframes mesh-shift {
+  0% {
+    background-position: 0% 50%;
+  }
+
+  50% {
+    background-position: 100% 50%;
+  }
+
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.animate-mesh {
+  animation: mesh-shift 22s ease-in-out infinite;
+}
+
+@keyframes float {
+
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.animate-float {
+  animation: float 5s ease-in-out infinite;
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-marquee {
+  animation: marquee 45s linear infinite;
+}
+
+/* ==== Badges de Turno ==== */
+.badge-turno {
+  @apply inline-flex items-center gap-1 text-[10px] md:text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-full;
+}
+
+.badge-manha {
+  background: linear-gradient(135deg, hsl(38 95% 55%), hsl(45 100% 60%));
+  color: hsl(30 60% 15%);
+}
+
+.badge-tarde {
+  background: linear-gradient(135deg, hsl(210 80% 55%), hsl(200 85% 65%));
+  color: hsl(0 0% 100%);
+}
+
+.badge-noite {
+  background: linear-gradient(135deg, hsl(260 60% 45%), hsl(280 65% 55%));
+  color: hsl(0 0% 100%);
+}
+
+.badge-integral {
+  background: linear-gradient(135deg, hsl(160 70% 42%), hsl(170 65% 50%));
+  color: hsl(0 0% 100%);
+}
+
+/* ==== Filtros / Chips ==== */
+.filter-chip {
+  @apply inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs md:text-sm font-medium transition-all duration-200 cursor-pointer select-none;
+  @apply border border-border hover:border-primary/50 hover:bg-primary/5;
+}
+
+.filter-chip.active {
+  @apply border-0 text-primary-foreground shadow-lg;
+  background: var(--gradient-brand);
+}
+
+/* ==== Admin live dot ==== */
+@keyframes live-dot {
+
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  50% {
+    opacity: 0.5;
+    transform: scale(0.7);
+  }
+}
+
+.live-dot {
+  @apply w-2.5 h-2.5 rounded-full bg-destructive inline-block;
+  animation: live-dot 1.2s ease-in-out infinite;
+}
+
+/* ==== Andar badge ==== */
+.andar-badge {
+  @apply text-[10px] md:text-xs font-semibold px-2 py-0.5 rounded-md;
+  background: hsl(var(--primary) / 0.12);
+  color: hsl(var(--primary));
+}
