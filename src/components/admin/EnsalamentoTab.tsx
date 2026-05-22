@@ -23,7 +23,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Loader2, Search, GripVertical, Upload } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, GripVertical, Upload, ArrowRightLeft } from "lucide-react";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
 import { normalizeSearch, statusFor, getAndarNumero } from "@/lib/ensalamento-utils";
@@ -429,6 +429,20 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
     setLoading(false);
   };
 
+  // --- NOVAS FUNÇÕES DOS BOTÕES (LÓGICA VISUAL) ---
+  
+  // Função atrelada ao novo botão de Buscar Salas Livres no topo.
+  // Ao ser clicado, exibirá no futuro o modal ou listagem filtrada de salas disponíveis.
+  const handleBuscarSalasLivres = () => {
+    toast.info("Painel de Salas Livres acionado!");
+  };
+
+  // Função atrelada ao ícone de Remanejar nas ações da tabela.
+  // Ao ser clicado, deverá abrir o modal para remanejar a turma cujo ID foi passado.
+  const handleRemanejarTurma = (id: string) => {
+    toast.info(`Iniciando remanejamento para a turma ID: ${id}`);
+  };
+
   // --- FILTROS E PESQUISA ---
   // Calcula andares e blocos únicos para preencher os selects de filtro
   const andaresUnicos = useMemo(() => Array.from(new Set(rows.map(r => getAndarNumero(r.sala)).filter(Boolean))).sort((a, b) => a! - b!), [rows]);
@@ -546,6 +560,16 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
             {importing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
             {importing ? "Importando..." : "Importar Planilha"}
           </Button>
+          
+          {/* BOTÃO ADICIONADO: Buscar Salas Livres */}
+          <Button 
+            onClick={handleBuscarSalasLivres} 
+            variant="outline" 
+            className="hover:border-primary hover:text-primary transition-smooth bg-background/50"
+          >
+            <Search className="w-4 h-4 mr-2" /> Buscar Salas Livres
+          </Button>
+
         <Button variant="destructive" onClick={() => setClearConfirmOpen(true)}>
           <Trash2 className="w-4 h-4 mr-2" /> Limpar Registros
         </Button>
@@ -620,6 +644,18 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                           <TableCell className="text-xs max-w-32 truncate">{r.sabado ?? "—"}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
+                              {/* BOTÃO ADICIONADO: Remanejar Turma */}
+                              {/* Fica na extrema esquerda das ações com cor indicativa (Amber/Laranja) para remanejamento */}
+                              <Button 
+                                size="icon" 
+                                variant="ghost" 
+                                onClick={() => handleRemanejarTurma(r.id)} 
+                                className="text-amber-500 hover:text-amber-600 hover:bg-amber-500/10 transition-smooth"
+                                title="Remanejar Turma"
+                              >
+                                <ArrowRightLeft className="w-4 h-4" />
+                              </Button>
+
                               <Button size="icon" variant="ghost" onClick={() => openEdit(r)}>
                                 <Pencil className="w-4 h-4" />
                               </Button>
