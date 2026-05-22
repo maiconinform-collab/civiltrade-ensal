@@ -441,9 +441,12 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
   // Função atrelada ao ícone de Remanejar nas ações da tabela.
   // Ao ser clicado, deverá abrir o modal para remanejar a turma cujo ID foi passado.
-  const handleRemanejarTurma = (id: string) => {
+  const handleRemanejarTurma = async (id: string) => {
     const aula = rows.find(r => r.id === id);
     if (aula) {
+      setLoading(true);
+      await loadOptions(); // Busca dados atualizados (status) do banco instantes antes de abrir o modal
+      setLoading(false);
       setRemanejarData({ aula, novaSala: "" });
     }
   };
@@ -821,20 +824,34 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                   <SelectTrigger><SelectValue placeholder="Escolha uma sala..." /></SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      <SelectLabel className="text-green-600">Salas Livres</SelectLabel>
+                      {/* GRUPO 1: Salas Livres (Rótulo verde) */}
+                      <SelectLabel className="text-green-600 font-bold">Salas Livres</SelectLabel>
                       {salasOptions.filter(s => s.status === 'Livre').map(s => (
                         <SelectItem key={s.id} value={s.nome}>
-                          <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-500"></div><span>{s.nome} {s.bloco ? `(Bloco ${s.bloco})` : ""}</span></div>
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                            <span>Sala {s.nome} {s.bloco ? `(Bloco ${s.bloco})` : ""} ({s.status})</span>
+                          </div>
                         </SelectItem>
                       ))}
+                      {salasOptions.filter(s => s.status === 'Livre').length === 0 && (
+                        <div className="px-8 py-2 text-sm text-muted-foreground">Nenhuma sala livre no momento</div>
+                      )}
                     </SelectGroup>
                     <SelectGroup>
-                      <SelectLabel className="text-muted-foreground pt-4">Outras Salas</SelectLabel>
+                      {/* GRUPO 2: Salas Indisponíveis/Em Manutenção (Rótulo roxo) */}
+                      <SelectLabel className="text-purple-600 font-bold pt-4">Salas Indisponíveis / Em Manutenção</SelectLabel>
                       {salasOptions.filter(s => s.status !== 'Livre').map(s => (
                         <SelectItem key={s.id} value={s.nome}>
-                          <div className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full ${s.status === 'Manutenção' ? 'bg-amber-500' : 'bg-red-500'}`}></div><span>{s.nome} {s.bloco ? `(Bloco ${s.bloco})` : ""} - {s.status || "Sem status"}</span></div>
+                          <div className="flex items-center gap-2">
+                            <div className={`w-2 h-2 rounded-full ${s.status === 'Ocupada' ? 'bg-red-500' : 'bg-purple-500'}`}></div>
+                            <span>Sala {s.nome} {s.bloco ? `(Bloco ${s.bloco})` : ""} ({s.status || "Sem status"})</span>
+                          </div>
                         </SelectItem>
                       ))}
+                      {salasOptions.filter(s => s.status !== 'Livre').length === 0 && (
+                        <div className="px-8 py-2 text-sm text-muted-foreground">Nenhuma sala nesta categoria</div>
+                      )}
                     </SelectGroup>
                   </SelectContent>
                 </Select>
