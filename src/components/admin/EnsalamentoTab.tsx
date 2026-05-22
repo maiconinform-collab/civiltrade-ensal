@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel,
 } from "@/components/ui/select";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -43,7 +43,7 @@ type Ensalamento = {
   quinta: string | null; sexta: string | null; sabado: string | null;
 };
 
-type SalaOption = { id: string; nome: string; bloco: string | null };
+type SalaOption = { id: string; nome: string; bloco: string | null; status?: string };
 type HorarioOption = { id: string; turno: string; hora_inicio: string; hora_fim: string };
 
 const empty: Omit<Ensalamento, "id" | "sort_order"> = {
@@ -109,6 +109,8 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   const [now, setNow] = useState(new Date());
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [monthFilter, setMonthFilter] = useState<string>(new Date().getMonth().toString());
+  
+  const [remanejarData, setRemanejarData] = useState<{aula: Ensalamento, novaSala: string} | null>(null);
 
   const [salasOptions, setSalasOptions] = useState<SalaOption[]>([]);
   const [horariosOptions, setHorariosOptions] = useState<HorarioOption[]>([]);
@@ -146,7 +148,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
   const loadOptions = async () => {
     const [salasRes, horariosRes] = await Promise.all([
-      supabase.from("salas").select("id, nome, bloco").order("nome"),
+      supabase.from("salas").select("id, nome, bloco, status").order("nome"),
       supabase.from("horarios").select("id, turno, hora_inicio, hora_fim").order("turno").order("hora_inicio"),
     ]);
     setSalasOptions((salasRes.data as SalaOption[]) ?? []);
@@ -440,7 +442,28 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   // Função atrelada ao ícone de Remanejar nas ações da tabela.
   // Ao ser clicado, deverá abrir o modal para remanejar a turma cujo ID foi passado.
   const handleRemanejarTurma = (id: string) => {
-    toast.info(`Iniciando remanejamento para a turma ID: ${id}`);
+    const aula = rows.find(r => r.id === id);
+    if (aula) {
+      setRemanejarData({ aula, novaSala: "" });
+    }
+  };
+
+  const handleConfirmarRemanejamento = async () => {
+    if (!remanejarData?.novaSala) return;
+    setLoading(true);
+    try {
+      const { error } = await supabase.from("ensalamento")
+        .update({ sala: remanejarData.novaSala }).eq("id", remanejarData.aula.id);
+      if (error) throw error;
+      toast.success("Turma remanejada com sucesso!");
+      setRemanejarData(null);
+      load();
+      loadOptions();
+    } catch (err: any) {
+      toast.error("Erro ao remanejar", { description: err.message });
+    } finally {
+      setLoading(false);
+    }
   };
 
   // --- FILTROS E PESQUISA ---
@@ -771,6 +794,56 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
             <Button onClick={handleSave} className="gradient-brand border-0">{editing ? "Salvar" : "Criar"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL DE REMANEJAMENTO */}
+      <Dialog open={!!remanejarData} onOpenChange={(v) => !v && setRemanejarData(null)}>
+        <DialogContent className="glass-strong">
+          <DialogHeader><DialogTitle>Remanejar Turma</DialogTitle></DialogHeader>
+          {remanejarData && (
+            <div className="space-y-4 py-2">
+              <div className="p-4 bg-muted/50 rounded-lg border border-border">
+                <p className="text-sm text-muted-foreground mb-1">Disciplina / Detalhes</p>
+                <p className="font-medium text-foreground">
+                  {remanejarData.aula.segunda || remanejarData.aula.terca || remanejarData.aula.quarta || remanejarData.aula.quinta || remanejarData.aula.sexta || remanejarData.aula.sabado || remanejarData.aula.professor || "Aula sem disciplina especificada"}
+                </p>
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="text-sm text-muted-foreground">Sala atual:</span>
+                  <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-md text-sm font-semibold">{remanejarData.aula.sala}</span>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label>Selecione a Nova Sala</Label>
+                <Select value={remanejarData.novaSala} onValueChange={(v) => setRemanejarData({...remanejarData, novaSala: v})}>
+                  <SelectTrigger><SelectValue placeholder="Escolha uma sala..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectGroup>
+                      <SelectLabel className="text-green-600">Salas Livres</SelectLabel>
+                      {salasOptions.filter(s => s.status === 'Livre').map(s => (
+                        <SelectItem key={s.id} value={s.nome}>
+                          <div className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-500"></div><span>{s.nome} {s.bloco ? `(Bloco ${s.bloco})` : ""}</span></div>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                    <SelectGroup>
+                      <SelectLabel className="text-muted-foreground pt-4">Outras Salas</SelectLabel>
+                      {salasOptions.filter(s => s.status !== 'Livre').map(s => (
+                        <SelectItem key={s.id} value={s.nome}>
+                          <div className="flex items-center gap-2"><div className={`w-2 h-2 rounded-full ${s.status === 'Manutenção' ? 'bg-amber-500' : 'bg-red-500'}`}></div><span>{s.nome} {s.bloco ? `(Bloco ${s.bloco})` : ""} - {s.status || "Sem status"}</span></div>
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRemanejarData(null)}>Cancelar</Button>
+            <Button onClick={handleConfirmarRemanejamento} disabled={!remanejarData?.novaSala || remanejarData.novaSala === remanejarData.aula.sala} className="gradient-brand border-0">Confirmar Remanejamento</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
