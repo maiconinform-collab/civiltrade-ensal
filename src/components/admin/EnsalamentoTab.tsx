@@ -29,7 +29,7 @@ import { toast } from "sonner";
 import { normalizeSearch, statusFor, getAndarNumero, dayKey, getCurrentTurno } from "@/lib/ensalamento-utils";
 
 import {
-  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, useDroppable
+  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, useDroppable, useDraggable
 } from "@dnd-kit/core";
 import {
   arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable
@@ -134,6 +134,40 @@ function DroppableMaintenanceZone() {
       <span className="text-[10px] text-purple-600 font-semibold uppercase tracking-wider">Interditar</span>
       <span className="text-xs font-bold text-purple-700 dark:text-purple-400">🔧 Em Manutenção</span>
       <span className="text-[9px] text-purple-600/70 text-center font-medium">Arraste uma turma aqui</span>
+    </div>
+  );
+}
+
+function DraggableStatusCard({ status }: { status: string }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: `status-${status}`,
+  });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    opacity: isDragging ? 0.6 : 1,
+    cursor: "grab",
+  };
+
+  const statusConfigs: Record<string, { label: string; colorClass: string; icon: string }> = {
+    "Livre": { label: "Livre", colorClass: "bg-green-500/10 text-green-500 border-green-500/30", icon: "🟢" },
+    "Ocupada": { label: "Ocupada", colorClass: "bg-red-500/10 text-red-500 border-red-500/30", icon: "🔴" },
+    "Manutenção": { label: "Manutenção", colorClass: "bg-purple-500/10 text-purple-500 border-purple-500/30", icon: "🔧" },
+    "Alagamento": { label: "Alagamento", colorClass: "bg-blue-500/10 text-blue-500 border-blue-500/30", icon: "🌊" },
+  };
+
+  const config = statusConfigs[status] || { label: status, colorClass: "bg-muted text-muted-foreground", icon: "⚙️" };
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={`px-3 py-1.5 rounded-full border text-xs font-bold inline-flex items-center gap-1.5 shadow-sm hover:scale-105 active:scale-95 transition-all ${config.colorClass}`}
+    >
+      <span>{config.icon}</span>
+      <span>{config.label}</span>
     </div>
   );
 }
@@ -543,7 +577,21 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
     const { active, over } = event;
     if (!over) return;
 
+    const activeId = String(active.id);
     const overId = String(over.id);
+
+    // Se o elemento arrastado for um card de Status (Livre, Ocupada, Manutenção, Alagamento)
+    if (activeId.startsWith("status-")) {
+      const newStatus = activeId.replace("status-", "");
+      if (overId.startsWith("room-")) {
+        const roomName = overId.replace("room-", "");
+        const targetSala = uniqueSalasOptions.find(s => s.nome === roomName);
+        if (targetSala) {
+          await handleAlterarStatusSala(targetSala.id, targetSala.nome, newStatus);
+        }
+      }
+      return;
+    }
 
     // Se solto na zona de manutenção
     if (overId === "zone-maintenance") {
@@ -569,11 +617,14 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       const roomName = overId.replace("room-", "");
       const turmaId = String(active.id);
 
+      const targetSala = uniqueSalasOptions.find(s => s.nome === roomName);
+      const bloco = targetSala?.bloco || null;
+
       setLoading(true);
       try {
         const { error } = await supabase
           .from("ensalamento")
-          .update({ sala: roomName })
+          .update({ sala: roomName, bloco: bloco })
           .eq("id", turmaId);
 
         if (error) throw error;
@@ -651,10 +702,14 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
   const handleConfirmarRemanejamento = async () => {
     if (!remanejarData?.novaSala) return;
+
+    const targetSala = uniqueSalasOptions.find(s => s.nome === remanejarData.novaSala);
+    const bloco = targetSala?.bloco || null;
+
     setLoading(true);
     try {
       const { error } = await supabase.from("ensalamento")
-        .update({ sala: remanejarData.novaSala }).eq("id", remanejarData.aula.id);
+        .update({ sala: remanejarData.novaSala, bloco: bloco }).eq("id", remanejarData.aula.id);
       if (error) throw error;
       toast.success("Turma remanejada com sucesso!");
       setRemanejarData(null);
@@ -888,6 +943,15 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
               >
                 Fechar
               </Button>
+            </div>
+
+            {/* BARRA DE STATUS DRAGGABLES */}
+            <div className="flex flex-wrap items-center gap-3 p-3 bg-background/40 border border-border/50 rounded-xl">
+              <span className="text-xs text-muted-foreground font-semibold">🔧 Alterar Status da Sala (Arrastar no bloco):</span>
+              <DraggableStatusCard status="Livre" />
+              <DraggableStatusCard status="Ocupada" />
+              <DraggableStatusCard status="Manutenção" />
+              <DraggableStatusCard status="Alagamento" />
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
