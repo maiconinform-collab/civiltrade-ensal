@@ -128,3 +128,22 @@ export const salaToNumber = (sala: string): number => {
   const match = sala.match(/(\d+)/);
   return match ? parseInt(match[1]) : 9999;
 };
+
+/* ── Captura Dia e Turno Real em Tempo Real ───────── */
+
+export const getCurrentTurno = (date: Date = new Date()): string => {
+  const options = { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false } as const;
+  const spHourStr = date.toLocaleTimeString('pt-BR', options).split(':')[0];
+  const currentHour = parseInt(spHourStr, 10);
+  
+  if (currentHour < 12) return "manha";
+  if (currentHour < 18) return "tarde";
+  return "noite";
+};
+
+export const getCurrentDayAndTurno = (date: Date = new Date()) => {
+  return {
+    day: dayKey(date),
+    turno: getCurrentTurno(date)
+  };
+};
