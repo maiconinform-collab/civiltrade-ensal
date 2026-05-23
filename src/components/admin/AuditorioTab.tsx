@@ -313,8 +313,8 @@ const AuditorioTab = ({ unidade }: { unidade: string }) => {
   const handleClearRecords = async () => {
     setLoading(true);
     const { error } = await supabase.from("auditorio_eventos").delete().eq("unidade", unidade);
-    if (error) { 
-      toast.error("Erro ao limpar registros", { description: error.message }); 
+    if (error) {
+      toast.error("Erro ao limpar registros", { description: error.message });
     } else {
       toast.success("Todos os registros foram limpos com sucesso!");
       setClearConfirmOpen(false);

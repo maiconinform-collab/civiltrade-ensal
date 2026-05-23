@@ -13,18 +13,22 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from "@/components/ui/select";
 import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 export type FieldDef = {
   key: string;
   label: string;
-  type?: "text" | "number" | "email" | "time";
+  type?: "text" | "number" | "email" | "time" | "select";
+  options?: { value: string; label: string }[];
   required?: boolean;
   placeholder?: string;
 };
 
-type AnyRow = { id: string; [k: string]: any };
+type AnyRow = { id: string;[k: string]: any };
 
 type Props = {
   title: string;
@@ -61,7 +65,7 @@ export function CrudTab({
   const openEdit = (r: AnyRow) => {
     setEditing(r);
     const f: Record<string, any> = { ...emptyForm };
-    fields.forEach((fd) => { f[fd.key] = r[fd.key] ?? ""; });
+    fields.forEach((fd) => { f[fd.key] = r[fd.key] ?? (emptyForm[fd.key] ?? ""); });
     setForm(f); setOpen(true);
   };
 
@@ -161,12 +165,30 @@ export function CrudTab({
             {fields.map((fd) => (
               <div key={fd.key} className={`space-y-2 ${fields.length % 2 !== 0 && fd.key === fields[fields.length - 1].key ? "md:col-span-2" : ""}`}>
                 <Label>{fd.label}{fd.required && " *"}</Label>
-                <Input
-                  type={fd.type ?? "text"}
-                  placeholder={fd.placeholder}
-                  value={form[fd.key] ?? ""}
-                  onChange={(e) => setForm({ ...form, [fd.key]: e.target.value })}
-                />
+                {fd.type === "select" ? (
+                  <Select
+                    value={form[fd.key] ?? ""}
+                    onValueChange={(val) => setForm({ ...form, [fd.key]: val })}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={fd.placeholder || "Selecione..."} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {fd.options?.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    type={fd.type ?? "text"}
+                    placeholder={fd.placeholder}
+                    value={form[fd.key] ?? ""}
+                    onChange={(e) => setForm({ ...form, [fd.key]: e.target.value })}
+                  />
+                )}
               </div>
             ))}
           </div>

@@ -29,7 +29,7 @@ import { toast } from "sonner";
 import { normalizeSearch, statusFor, getAndarNumero } from "@/lib/ensalamento-utils";
 
 import {
-  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent
+  DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, useDroppable
 } from "@dnd-kit/core";
 import {
   arrayMove, SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy, useSortable
@@ -95,9 +95,33 @@ function SortableRow({ id, children, className }: { id: string, children: React.
   );
 }
 
+function DroppableRoomBlock({ room }: { room: SalaOption }) {
+  const { isOver, setNodeRef } = useDroppable({
+    id: `room-${room.nome}`,
+  });
+
+  return (
+    <div
+      ref={setNodeRef}
+      className={`p-4 rounded-xl border-2 transition-all duration-300 flex flex-col items-center justify-center min-w-[120px] h-[85px] cursor-pointer ${isOver
+        ? "border-green-500 bg-green-500/20 scale-105 shadow-glow"
+        : "border-green-500/30 bg-green-500/5 hover:border-green-500 hover:bg-green-500/10"
+        }`}
+    >
+      <span className="text-[10px] text-green-600 font-semibold uppercase tracking-wider">Sala</span>
+      <span className="text-lg font-bold text-green-700 dark:text-green-400">{room.nome}</span>
+      {room.bloco && (
+        <span className="text-[10px] text-green-600/80 font-medium">Bloco {room.bloco}</span>
+      )}
+    </div>
+  );
+}
+
 const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   // --- VARIÁVEIS CRÍTICAS E ESTADOS ---
   const [rows, setRows] = useState<Ensalamento[]>([]); // Linhas da tabela
+  const [filterOnlyFreeSalas, setFilterOnlyFreeSalas] = useState(false);
+  const [showDndPanel, setShowDndPanel] = useState(false);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [andarFilter, setAndarFilter] = useState("todos");
@@ -109,8 +133,8 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   const [now, setNow] = useState(new Date());
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [monthFilter, setMonthFilter] = useState<string>(new Date().getMonth().toString());
-  
-  const [remanejarData, setRemanejarData] = useState<{aula: Ensalamento, novaSala: string} | null>(null);
+
+  const [remanejarData, setRemanejarData] = useState<{ aula: Ensalamento, novaSala: string } | null>(null);
 
   const [salasOptions, setSalasOptions] = useState<SalaOption[]>([]);
   const [horariosOptions, setHorariosOptions] = useState<HorarioOption[]>([]);
@@ -148,7 +172,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
   const loadOptions = async () => {
     const [salasRes, horariosRes] = await Promise.all([
-      supabase.from("salas").select("id, nome, bloco, status").order("nome"),
+      supabase.from("salas").select("id, nome, bloco, status").eq("unidade", unidade).order("nome"),
       supabase.from("horarios").select("id, turno, hora_inicio, hora_fim").order("turno").order("hora_inicio"),
     ]);
     setSalasOptions((salasRes.data as SalaOption[]) ?? []);
@@ -156,6 +180,67 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   };
 
   useEffect(() => { load(); loadOptions(); }, [unidade]);
+
+  // Sincroniza salas da tabela de ensalamento para a tabela de salas caso esta esteja vazia
+  const syncSalasFromEnsalamento = async (currentSalas: SalaOption[], currentRows: Ensalamento[]) => {
+    if (currentSalas.length > 0 || currentRows.length === 0) return;
+
+    // Filtra salas únicas das aulas
+    const uniqueRooms = Array.from(new Set(currentRows.map(r => r.sala).filter(Boolean)));
+    if (uniqueRooms.length === 0) return;
+
+    try {
+      const salasParaInserir = uniqueRooms.map(salaNome => {
+        const correspondingRow = currentRows.find(r => r.sala === salaNome);
+        return {
+          nome: salaNome,
+          bloco: correspondingRow?.bloco || null,
+          status: "Livre",
+          unidade: unidade
+        };
+      });
+
+      const { error } = await supabase.from("salas").insert(salasParaInserir);
+      if (error) throw error;
+
+      toast.success(`${salasParaInserir.length} salas importadas automaticamente com status 'Livre'!`, {
+        description: "Você pode alterar o status delas a qualquer momento na aba de Salas."
+      });
+
+      // Recarrega as salas para atualizar o dropdown e o PND
+      const { data: newSalas } = await supabase
+        .from("salas")
+        .select("id, nome, bloco, status")
+        .eq("unidade", unidade)
+        .order("nome");
+      if (newSalas) {
+        setSalasOptions(newSalas as SalaOption[]);
+      }
+    } catch (e: any) {
+      console.error("Erro ao sincronizar salas:", e);
+    }
+  };
+
+  useEffect(() => {
+    if (!loading && rows.length > 0 && salasOptions.length === 0) {
+      syncSalasFromEnsalamento(salasOptions, rows);
+    }
+  }, [loading, rows, salasOptions]);
+
+  // useEffect para carregar salas com select('*') e manter atualizado
+  useEffect(() => {
+    const fetchSalas = async () => {
+      const { data, error } = await supabase
+        .from("salas")
+        .select("*")
+        .eq("unidade", unidade)
+        .order("nome");
+      if (!error && data) {
+        setSalasOptions((data as SalaOption[]) ?? []);
+      }
+    };
+    fetchSalas();
+  }, [unidade, remanejarData]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
@@ -397,23 +482,56 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
     if (!deleteId) return;
     const { error } = await supabase.from("ensalamento").delete().eq("id", deleteId);
     if (error) { toast.error("Erro ao excluir", { description: error.message }); return; }
-    toast.success("Excluído"); setDeleteId(null); load();
+    toast.success("Excluído");
   };
 
   const handleDragEnd = async (event: DragEndEvent) => {
     const { active, over } = event;
-    if (over && active.id !== over.id) {
+    if (!over) return;
+
+    // Se solto em um bloco de sala livre (Zona de Remanejamento Rápido)
+    const overId = String(over.id);
+    if (overId.startsWith("room-")) {
+      const roomName = overId.replace("room-", "");
+      const turmaId = String(active.id);
+
+      setLoading(true);
+      try {
+        const { error } = await supabase
+          .from("ensalamento")
+          .update({ sala: roomName })
+          .eq("id", turmaId);
+
+        if (error) throw error;
+        toast.success(`Turma remanejada para Sala ${roomName}!`);
+        load();
+      } catch (err: any) {
+        toast.error("Erro ao remanejar via DnD", { description: err.message });
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // Comportamento original de reordenação de linhas
+    if (active.id !== over.id) {
       const oldIndex = rows.findIndex((i) => i.id === active.id);
       const newIndex = rows.findIndex((i) => i.id === over.id);
-      const newArray = arrayMove(rows, oldIndex, newIndex);
-      setRows(newArray);
+      if (oldIndex !== -1 && newIndex !== -1) {
+        const newArray = arrayMove(rows, oldIndex, newIndex);
+        setRows(newArray);
 
-      const updates = newArray.map((item, index) => ({ id: item.id, sort_order: index }));
-      try {
-        await Promise.all(updates.map(u => supabase.from("ensalamento").update({ sort_order: u.sort_order }).eq("id", u.id)));
-        toast.success("Ordem atualizada!");
-      } catch (e) {
-        toast.error("Erro ao salvar ordem");
+        const updates = newArray.map((item, index) => ({ id: item.id, sort_order: index }));
+        try {
+          await Promise.all(
+            updates.map((u) =>
+              supabase.from("ensalamento").update({ sort_order: u.sort_order }).eq("id", u.id)
+            )
+          );
+          toast.success("Ordem atualizada!");
+        } catch (e) {
+          toast.error("Erro ao salvar ordem");
+        }
       }
     }
   };
@@ -421,22 +539,28 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   const handleClearRecords = async () => {
     setLoading(true);
     const { error } = await supabase.from("ensalamento").delete().eq("unidade", unidade);
-    if (error) { 
-      toast.error("Erro ao limpar registros", { description: error.message }); 
+    if (error) {
+      toast.error("Erro ao limpar registros", { description: error.message });
     } else {
       toast.success("Todos os registros da unidade foram limpos!");
       setClearConfirmOpen(false);
       load();
+      loadOptions();
     }
     setLoading(false);
   };
 
   // --- NOVAS FUNÇÕES DOS BOTÕES (LÓGICA VISUAL) ---
-  
+
   // Função atrelada ao novo botão de Buscar Salas Livres no topo.
-  // Ao ser clicado, exibirá no futuro o modal ou listagem filtrada de salas disponíveis.
-  const handleBuscarSalasLivres = () => {
-    toast.info("Painel de Salas Livres acionado!");
+  // Ao ser clicado, faz o toggle do filtro de salas livres.
+  const handleBuscarSalasLivres = async () => {
+    if (!filterOnlyFreeSalas) {
+      setLoading(true);
+      await loadOptions();
+      setLoading(false);
+    }
+    setFilterOnlyFreeSalas((prev) => !prev);
   };
 
   // Função atrelada ao ícone de Remanejar nas ações da tabela.
@@ -479,6 +603,12 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
     return rows.filter((r) => {
       if (andarFilter !== "todos" && getAndarNumero(r.sala)?.toString() !== andarFilter) return false;
       if (blocoFilter !== "todos" && r.bloco !== blocoFilter) return false;
+
+      if (filterOnlyFreeSalas) {
+        const correspondingSala = salasOptions.find((s) => s.nome === r.sala);
+        if (correspondingSala?.status !== "Livre") return false;
+      }
+
       if (!q) return true;
       const fields = [
         r.sala, r.professor ?? "", r.bloco ?? "", r.horario, turnoLabels[r.turno] ?? r.turno,
@@ -486,7 +616,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       ];
       return fields.some((f) => normalizeSearch(f).includes(q));
     });
-  }, [rows, search, andarFilter, blocoFilter]);
+  }, [rows, search, andarFilter, blocoFilter, filterOnlyFreeSalas, salasOptions]);
 
   const handleSalaSelect = (value: string) => {
     if (value === "__custom__") {
@@ -519,96 +649,147 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
   // --- RENDERIZAÇÃO DA INTERFACE ---
   return (
-    <div className="space-y-4 animate-fade-in">
-      {/* --- CABEÇALHO E FILTROS --- */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold">Ensalamento</h2>
-          <p className="text-muted-foreground text-sm">{rows.length} aula{rows.length === 1 ? "" : "s"} cadastrada{rows.length === 1 ? "" : "s"}</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-        <Select value={monthFilter} onValueChange={setMonthFilter}>
-          <SelectTrigger className="w-[140px]"><SelectValue placeholder="Mês" /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="todos">Todos os Meses</SelectItem>
-            <SelectItem value="0">Janeiro</SelectItem>
-            <SelectItem value="1">Fevereiro</SelectItem>
-            <SelectItem value="2">Março</SelectItem>
-            <SelectItem value="3">Abril</SelectItem>
-            <SelectItem value="4">Maio</SelectItem>
-            <SelectItem value="5">Junho</SelectItem>
-            <SelectItem value="6">Julho</SelectItem>
-            <SelectItem value="7">Agosto</SelectItem>
-            <SelectItem value="8">Setembro</SelectItem>
-            <SelectItem value="9">Outubro</SelectItem>
-            <SelectItem value="10">Novembro</SelectItem>
-            <SelectItem value="11">Dezembro</SelectItem>
-          </SelectContent>
-        </Select>
-
-          <Select value={andarFilter} onValueChange={setAndarFilter}>
-            <SelectTrigger className="w-[140px]"><SelectValue placeholder="Andar" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos Andares</SelectItem>
-              {andaresUnicos.map(a => <SelectItem key={a} value={a!.toString()}>{a}º Andar</SelectItem>)}
-            </SelectContent>
-          </Select>
-
-          <Select value={blocoFilter} onValueChange={setBlocoFilter}>
-            <SelectTrigger className="w-[140px]"><SelectValue placeholder="Bloco" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="todos">Todos Blocos</SelectItem>
-              {blocosUnicos.map(b => <SelectItem key={b} value={b as string}>Bloco {b}</SelectItem>)}
-            </SelectContent>
-          </Select>
-
-          <div className="relative">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              placeholder="Buscar sala, prof, disciplina..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 w-64"
-            />
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <div className="space-y-4 animate-fade-in">
+        {/* --- CABEÇALHO E FILTROS --- */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Ensalamento</h2>
+            <p className="text-muted-foreground text-sm">{rows.length} aula{rows.length === 1 ? "" : "s"} cadastrada{rows.length === 1 ? "" : "s"}</p>
           </div>
-          <input
-            type="file"
-            accept=".xlsx, .xls, .csv"
-            className="hidden"
-            ref={fileInputRef}
-            onChange={handleFileUpload}
-          />
-          <Button
-            onClick={() => fileInputRef.current?.click()}
-            variant="outline"
-            disabled={importing}
-          >
-            {importing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-            {importing ? "Importando..." : "Importar Planilha"}
-          </Button>
-          
-          {/* BOTÃO ADICIONADO: Buscar Salas Livres */}
-          <Button 
-            onClick={handleBuscarSalasLivres} 
-            variant="outline" 
-            className="hover:border-primary hover:text-primary transition-smooth bg-background/50"
-          >
-            <Search className="w-4 h-4 mr-2" /> Buscar Salas Livres
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Select value={monthFilter} onValueChange={setMonthFilter}>
+              <SelectTrigger className="w-[140px]"><SelectValue placeholder="Mês" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os Meses</SelectItem>
+                <SelectItem value="0">Janeiro</SelectItem>
+                <SelectItem value="1">Fevereiro</SelectItem>
+                <SelectItem value="2">Março</SelectItem>
+                <SelectItem value="3">Abril</SelectItem>
+                <SelectItem value="4">Maio</SelectItem>
+                <SelectItem value="5">Junho</SelectItem>
+                <SelectItem value="6">Julho</SelectItem>
+                <SelectItem value="7">Agosto</SelectItem>
+                <SelectItem value="8">Setembro</SelectItem>
+                <SelectItem value="9">Outubro</SelectItem>
+                <SelectItem value="10">Novembro</SelectItem>
+                <SelectItem value="11">Dezembro</SelectItem>
+              </SelectContent>
+            </Select>
 
-        <Button variant="destructive" onClick={() => setClearConfirmOpen(true)}>
-          <Trash2 className="w-4 h-4 mr-2" /> Limpar Registros
-        </Button>
-          <Button onClick={openNew} className="gradient-brand border-0 shadow-brand">
-            <Plus className="w-4 h-4 mr-2" /> Nova Aula
-          </Button>
+            <Select value={andarFilter} onValueChange={setAndarFilter}>
+              <SelectTrigger className="w-[140px]"><SelectValue placeholder="Andar" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos Andares</SelectItem>
+                {andaresUnicos.map(a => <SelectItem key={a} value={a!.toString()}>{a}º Andar</SelectItem>)}
+              </SelectContent>
+            </Select>
+
+            <Select value={blocoFilter} onValueChange={setBlocoFilter}>
+              <SelectTrigger className="w-[140px]"><SelectValue placeholder="Bloco" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos Blocos</SelectItem>
+                {blocosUnicos.map(b => <SelectItem key={b} value={b as string}>Bloco {b}</SelectItem>)}
+              </SelectContent>
+            </Select>
+
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="Buscar sala, prof, disciplina..."
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="pl-9 w-64"
+              />
+            </div>
+            <input
+              type="file"
+              accept=".xlsx, .xls, .csv"
+              className="hidden"
+              ref={fileInputRef}
+              onChange={handleFileUpload}
+            />
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              variant="outline"
+              disabled={importing}
+            >
+              {importing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+              {importing ? "Importando..." : "Importar Planilha"}
+            </Button>
+
+            {/* BOTÃO ADICIONADO: Buscar Salas Livres */}
+            <Button
+              onClick={handleBuscarSalasLivres}
+              variant={filterOnlyFreeSalas ? "default" : "outline"}
+              className={`transition-smooth ${filterOnlyFreeSalas
+                ? "bg-green-600 hover:bg-green-700 text-white shadow-glow"
+                : "hover:border-primary hover:text-primary bg-background/50"
+                }`}
+            >
+              <Search className="w-4 h-4 mr-2" />
+              {filterOnlyFreeSalas ? "Ver Todas as Salas" : "Buscar Salas Livres"}
+            </Button>
+
+            {/* BOTÃO ADICIONADO: Painel DnD */}
+            <Button
+              onClick={() => setShowDndPanel(prev => !prev)}
+              variant={showDndPanel ? "default" : "outline"}
+              className={`transition-smooth ${showDndPanel
+                ? "bg-amber-600 hover:bg-amber-700 text-white shadow-glow"
+                : "hover:border-amber-500 hover:text-amber-500 bg-background/50"
+                }`}
+            >
+              <ArrowRightLeft className="w-4 h-4 mr-2" />
+              {showDndPanel ? "Ocultar Painel DnD" : "Painel DnD"}
+            </Button>
+
+            <Button variant="destructive" onClick={() => setClearConfirmOpen(true)}>
+              <Trash2 className="w-4 h-4 mr-2" /> Limpar Registros
+            </Button>
+            <Button onClick={openNew} className="gradient-brand border-0 shadow-brand">
+              <Plus className="w-4 h-4 mr-2" /> Nova Aula
+            </Button>
+          </div>
         </div>
-      </div>
 
-      {/* --- TABELA DE AULAS (COM DRAG & DROP) --- */}
-      <div className="glass-card overflow-hidden">
-        <div className="overflow-x-auto">
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        {/* PAINEL DE REMANEJAMENTO RÁPIDO (DND) */}
+        {showDndPanel && (
+          <div className="glass-card p-6 border-amber-500/30 bg-amber-500/5 rounded-2xl animate-fade-in space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-amber-800 dark:text-amber-400 flex items-center gap-2">
+                  <ArrowRightLeft className="w-5 h-5 animate-pulse" />
+                  Zonas de Remanejamento Rápido (Drag & Drop)
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Arraste uma turma da tabela (pelo ícone de ordenação <GripVertical className="inline w-3.5 h-3.5" />) e solte-a em uma das salas livres abaixo para remanejar instantaneamente.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-amber-800 dark:text-amber-400 hover:bg-amber-500/10"
+                onClick={() => setShowDndPanel(false)}
+              >
+                Fechar
+              </Button>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              {salasOptions.filter(s => s.status === 'Livre').map((room) => (
+                <DroppableRoomBlock key={room.id} room={room} />
+              ))}
+              {salasOptions.filter(s => s.status === 'Livre').length === 0 && (
+                <p className="text-sm text-muted-foreground py-4">Nenhuma sala livre disponível no momento.</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* --- TABELA DE AULAS --- */}
+        <div className="glass-card overflow-hidden">
+          <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -672,10 +853,10 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                             <div className="flex justify-end gap-1">
                               {/* BOTÃO ADICIONADO: Remanejar Turma */}
                               {/* Fica na extrema esquerda das ações com cor indicativa (Amber/Laranja) para remanejamento */}
-                              <Button 
-                                size="icon" 
-                                variant="ghost" 
-                                onClick={() => handleRemanejarTurma(r.id)} 
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => handleRemanejarTurma(r.id)}
                                 className="text-amber-500 hover:text-amber-600 hover:bg-amber-500/10 transition-smooth"
                                 title="Remanejar Turma"
                               >
@@ -697,200 +878,200 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                 )}
               </TableBody>
             </Table>
-          </DndContext>
+          </div>
         </div>
-      </div>
 
-      {/* --- MODAL DE EDIÇÃO E CRIAÇÃO --- */}
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto glass-strong">
-          <DialogHeader><DialogTitle>{editing ? "Editar aula" : "Nova aula"}</DialogTitle></DialogHeader>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
-            <div className="space-y-2">
-              <Label>Sala * (Apenas números)</Label>
-              {!salaCustom && salasOptions.length > 0 ? (
-                <Select value={form.sala} onValueChange={handleSalaSelect}>
-                  <SelectTrigger><SelectValue placeholder="Selecione uma sala" /></SelectTrigger>
-                  <SelectContent>
-                    {salasOptions.map((s) => (
-                      <SelectItem key={s.id} value={s.nome}>{s.nome}{s.bloco ? ` (Bloco ${s.bloco})` : ""}</SelectItem>
-                    ))}
-                    <SelectItem value="__custom__">✏️ Digitar manualmente...</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <div className="flex gap-2">
-                  <Input value={form.sala} onChange={handleSalaChange} placeholder="Ex: 701" className="flex-1" />
-                  {salasOptions.length > 0 && <Button variant="outline" size="sm" onClick={() => setSalaCustom(false)}>Selecionar</Button>}
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2"><Label>Bloco</Label><Input value={form.bloco ?? ""} onChange={(e) => setForm({ ...form, bloco: e.target.value })} placeholder="Ex: A" /></div>
-
-            <div className="space-y-2">
-              <Label>Turno *</Label>
-              <Select value={form.turno} onValueChange={(v) => setForm({ ...form, turno: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="manha">Manhã</SelectItem>
-                  <SelectItem value="tarde">Tarde</SelectItem>
-                  <SelectItem value="noite">Noite</SelectItem>
-                  <SelectItem value="integral">Integral</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Horário *</Label>
-              {!horarioCustom && horariosOptions.length > 0 ? (
-                <Select value={form.horario} onValueChange={handleHorarioSelect}>
-                  <SelectTrigger><SelectValue placeholder="Selecione um horário" /></SelectTrigger>
-                  <SelectContent>
-                    {horariosOptions.map((h) => {
-                      const val = `${h.hora_inicio}-${h.hora_fim}`;
-                      return <SelectItem key={h.id} value={val}>{val} ({turnoLabels[h.turno] ?? h.turno})</SelectItem>;
-                    })}
-                    <SelectItem value="__custom__">✏️ Digitar manualmente...</SelectItem>
-                  </SelectContent>
-                </Select>
-              ) : (
-                <div className="flex gap-2">
-                  <Input value={form.horario} onChange={(e) => setForm({ ...form, horario: e.target.value })} placeholder="08:00-10:00" className="flex-1" />
-                  {horariosOptions.length > 0 && <Button variant="outline" size="sm" onClick={() => setHorarioCustom(false)}>Selecionar</Button>}
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2 md:col-span-2"><Label>Professor</Label><Input value={form.professor ?? ""} onChange={(e) => setForm({ ...form, professor: e.target.value })} /></div>
-
-            <div className="md:col-span-2 mt-4"><h3 className="font-semibold border-b border-border pb-2">Dias da Semana (Disciplina e Horário Específico)</h3></div>
-
-            {(["segunda", "terca", "quarta", "quinta", "sexta", "sabado"] as const).map((d) => {
-              return (
-                <div key={d} className="space-y-2 md:col-span-2">
-                  <Label className="capitalize">{d === "terca" ? "Terça" : d === "sabado" ? "Sábado" : d}</Label>
+        {/* --- MODAL DE EDIÇÃO E CRIAÇÃO --- */}
+        <Dialog open={open} onOpenChange={setOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto glass-strong">
+            <DialogHeader><DialogTitle>{editing ? "Editar aula" : "Nova aula"}</DialogTitle></DialogHeader>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
+              <div className="space-y-2">
+                <Label>Sala * (Apenas números)</Label>
+                {!salaCustom && salasOptions.length > 0 ? (
+                  <Select value={form.sala} onValueChange={handleSalaSelect}>
+                    <SelectTrigger><SelectValue placeholder="Selecione uma sala" /></SelectTrigger>
+                    <SelectContent>
+                      {salasOptions.map((s) => (
+                        <SelectItem key={s.id} value={s.nome}>{s.nome}{s.bloco ? ` (Bloco ${s.bloco})` : ""}</SelectItem>
+                      ))}
+                      <SelectItem value="__custom__">✏️ Digitar manualmente...</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
                   <div className="flex gap-2">
-                    <Input
-                      value={dayData[d]?.materia || ""}
-                      onChange={(e) => setDayData({
-                        ...dayData,
-                        [d]: { ...dayData[d], materia: e.target.value }
+                    <Input value={form.sala} onChange={handleSalaChange} placeholder="Ex: 701" className="flex-1" />
+                    {salasOptions.length > 0 && <Button variant="outline" size="sm" onClick={() => setSalaCustom(false)}>Selecionar</Button>}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2"><Label>Bloco</Label><Input value={form.bloco ?? ""} onChange={(e) => setForm({ ...form, bloco: e.target.value })} placeholder="Ex: A" /></div>
+
+              <div className="space-y-2">
+                <Label>Turno *</Label>
+                <Select value={form.turno} onValueChange={(v) => setForm({ ...form, turno: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="manha">Manhã</SelectItem>
+                    <SelectItem value="tarde">Tarde</SelectItem>
+                    <SelectItem value="noite">Noite</SelectItem>
+                    <SelectItem value="integral">Integral</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Horário *</Label>
+                {!horarioCustom && horariosOptions.length > 0 ? (
+                  <Select value={form.horario} onValueChange={handleHorarioSelect}>
+                    <SelectTrigger><SelectValue placeholder="Selecione um horário" /></SelectTrigger>
+                    <SelectContent>
+                      {horariosOptions.map((h) => {
+                        const val = `${h.hora_inicio}-${h.hora_fim}`;
+                        return <SelectItem key={h.id} value={val}>{val} ({turnoLabels[h.turno] ?? h.turno})</SelectItem>;
                       })}
-                      placeholder="Nome da Disciplina"
-                      className="flex-[2]"
-                    />
-                    <Input
-                      value={dayData[d]?.horario || ""}
-                      onChange={(e) => setDayData({
-                        ...dayData,
-                        [d]: { ...dayData[d], horario: e.target.value }
-                      })}
-                      placeholder="Ex: 08:00-11:20"
-                      className="flex-1"
-                    />
+                      <SelectItem value="__custom__">✏️ Digitar manualmente...</SelectItem>
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input value={form.horario} onChange={(e) => setForm({ ...form, horario: e.target.value })} placeholder="08:00-10:00" className="flex-1" />
+                    {horariosOptions.length > 0 && <Button variant="outline" size="sm" onClick={() => setHorarioCustom(false)}>Selecionar</Button>}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2 md:col-span-2"><Label>Professor</Label><Input value={form.professor ?? ""} onChange={(e) => setForm({ ...form, professor: e.target.value })} /></div>
+
+              <div className="md:col-span-2 mt-4"><h3 className="font-semibold border-b border-border pb-2">Dias da Semana (Disciplina e Horário Específico)</h3></div>
+
+              {(["segunda", "terca", "quarta", "quinta", "sexta", "sabado"] as const).map((d) => {
+                return (
+                  <div key={d} className="space-y-2 md:col-span-2">
+                    <Label className="capitalize">{d === "terca" ? "Terça" : d === "sabado" ? "Sábado" : d}</Label>
+                    <div className="flex gap-2">
+                      <Input
+                        value={dayData[d]?.materia || ""}
+                        onChange={(e) => setDayData({
+                          ...dayData,
+                          [d]: { ...dayData[d], materia: e.target.value }
+                        })}
+                        placeholder="Nome da Disciplina"
+                        className="flex-[2]"
+                      />
+                      <Input
+                        value={dayData[d]?.horario || ""}
+                        onChange={(e) => setDayData({
+                          ...dayData,
+                          [d]: { ...dayData[d], horario: e.target.value }
+                        })}
+                        placeholder="Ex: 08:00-11:20"
+                        className="flex-1"
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
+              <Button onClick={handleSave} className="gradient-brand border-0">{editing ? "Salvar" : "Criar"}</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* MODAL DE REMANEJAMENTO */}
+        <Dialog open={!!remanejarData} onOpenChange={(v) => !v && setRemanejarData(null)}>
+          <DialogContent className="glass-strong">
+            <DialogHeader><DialogTitle>Remanejar Turma</DialogTitle></DialogHeader>
+            {remanejarData && (
+              <div className="space-y-4 py-2">
+                <div className="p-4 bg-muted/50 rounded-lg border border-border">
+                  <p className="text-sm text-muted-foreground mb-1">Disciplina / Detalhes</p>
+                  <p className="font-medium text-foreground">
+                    {remanejarData.aula.segunda || remanejarData.aula.terca || remanejarData.aula.quarta || remanejarData.aula.quinta || remanejarData.aula.sexta || remanejarData.aula.sabado || remanejarData.aula.professor || "Aula sem disciplina especificada"}
+                  </p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <span className="text-sm text-muted-foreground">Sala atual:</span>
+                    <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-md text-sm font-semibold">{remanejarData.aula.sala}</span>
                   </div>
                 </div>
-              );
-            })}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
-            <Button onClick={handleSave} className="gradient-brand border-0">{editing ? "Salvar" : "Criar"}</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      {/* MODAL DE REMANEJAMENTO */}
-      <Dialog open={!!remanejarData} onOpenChange={(v) => !v && setRemanejarData(null)}>
-        <DialogContent className="glass-strong">
-          <DialogHeader><DialogTitle>Remanejar Turma</DialogTitle></DialogHeader>
-          {remanejarData && (
-            <div className="space-y-4 py-2">
-              <div className="p-4 bg-muted/50 rounded-lg border border-border">
-                <p className="text-sm text-muted-foreground mb-1">Disciplina / Detalhes</p>
-                <p className="font-medium text-foreground">
-                  {remanejarData.aula.segunda || remanejarData.aula.terca || remanejarData.aula.quarta || remanejarData.aula.quinta || remanejarData.aula.sexta || remanejarData.aula.sabado || remanejarData.aula.professor || "Aula sem disciplina especificada"}
-                </p>
-                <div className="flex items-center gap-2 mt-2">
-                  <span className="text-sm text-muted-foreground">Sala atual:</span>
-                  <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-md text-sm font-semibold">{remanejarData.aula.sala}</span>
+                <div className="space-y-2">
+                  <Label>Selecione a Nova Sala</Label>
+                  <Select value={remanejarData.novaSala} onValueChange={(v) => setRemanejarData({ ...remanejarData, novaSala: v })}>
+                    <SelectTrigger><SelectValue placeholder="Escolha uma sala..." /></SelectTrigger>
+                    <SelectContent>
+                      <SelectGroup>
+                        {/* GRUPO 1: Salas Livres (Rótulo verde) */}
+                        <SelectLabel className="text-green-600 font-bold">Salas Livres</SelectLabel>
+                        {salasOptions.filter(s => s.status === 'Livre').map(s => (
+                          <SelectItem key={s.id} value={s.nome}>
+                            <div className="flex items-center gap-2">
+                              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                              <span>Sala {s.nome} {s.bloco ? `(Bloco ${s.bloco})` : ""} ({s.status})</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                        {salasOptions.filter(s => s.status === 'Livre').length === 0 && (
+                          <div className="px-8 py-2 text-sm text-muted-foreground">Nenhuma sala livre no momento</div>
+                        )}
+                      </SelectGroup>
+                      <SelectGroup>
+                        {/* GRUPO 2: Salas Indisponíveis/Em Manutenção (Rótulo roxo) */}
+                        <SelectLabel className="text-purple-600 font-bold pt-4">Salas Indisponíveis / Em Manutenção</SelectLabel>
+                        {salasOptions.filter(s => ['Ocupada', 'Manutenção', 'Defeito Ar', 'Alagamento'].includes(s.status || '')).map(s => (
+                          <SelectItem key={s.id} value={s.nome}>
+                            <div className="flex items-center gap-2">
+                              <div className={`w-2 h-2 rounded-full ${s.status === 'Ocupada' ? 'bg-red-500' : 'bg-purple-500'}`}></div>
+                              <span>Sala {s.nome} {s.bloco ? `(Bloco ${s.bloco})` : ""} ({s.status || "Sem status"})</span>
+                            </div>
+                          </SelectItem>
+                        ))}
+                        {salasOptions.filter(s => ['Ocupada', 'Manutenção', 'Defeito Ar', 'Alagamento'].includes(s.status || '')).length === 0 && (
+                          <div className="px-8 py-2 text-sm text-muted-foreground">Nenhuma sala nesta categoria</div>
+                        )}
+                      </SelectGroup>
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
-              
-              <div className="space-y-2">
-                <Label>Selecione a Nova Sala</Label>
-                <Select value={remanejarData.novaSala} onValueChange={(v) => setRemanejarData({...remanejarData, novaSala: v})}>
-                  <SelectTrigger><SelectValue placeholder="Escolha uma sala..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectGroup>
-                      {/* GRUPO 1: Salas Livres (Rótulo verde) */}
-                      <SelectLabel className="text-green-600 font-bold">Salas Livres</SelectLabel>
-                      {salasOptions.filter(s => s.status === 'Livre').map(s => (
-                        <SelectItem key={s.id} value={s.nome}>
-                          <div className="flex items-center gap-2">
-                            <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                            <span>Sala {s.nome} {s.bloco ? `(Bloco ${s.bloco})` : ""} ({s.status})</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                      {salasOptions.filter(s => s.status === 'Livre').length === 0 && (
-                        <div className="px-8 py-2 text-sm text-muted-foreground">Nenhuma sala livre no momento</div>
-                      )}
-                    </SelectGroup>
-                    <SelectGroup>
-                      {/* GRUPO 2: Salas Indisponíveis/Em Manutenção (Rótulo roxo) */}
-                      <SelectLabel className="text-purple-600 font-bold pt-4">Salas Indisponíveis / Em Manutenção</SelectLabel>
-                      {salasOptions.filter(s => s.status !== 'Livre').map(s => (
-                        <SelectItem key={s.id} value={s.nome}>
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2 h-2 rounded-full ${s.status === 'Ocupada' ? 'bg-red-500' : 'bg-purple-500'}`}></div>
-                            <span>Sala {s.nome} {s.bloco ? `(Bloco ${s.bloco})` : ""} ({s.status || "Sem status"})</span>
-                          </div>
-                        </SelectItem>
-                      ))}
-                      {salasOptions.filter(s => s.status !== 'Livre').length === 0 && (
-                        <div className="px-8 py-2 text-sm text-muted-foreground">Nenhuma sala nesta categoria</div>
-                      )}
-                    </SelectGroup>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRemanejarData(null)}>Cancelar</Button>
-            <Button onClick={handleConfirmarRemanejamento} disabled={!remanejarData?.novaSala || remanejarData.novaSala === remanejarData.aula.sala} className="gradient-brand border-0">Confirmar Remanejamento</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            )}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRemanejarData(null)}>Cancelar</Button>
+              <Button onClick={handleConfirmarRemanejamento} disabled={!remanejarData?.novaSala || remanejarData.novaSala === remanejarData.aula.sala} className="gradient-brand border-0">Confirmar Remanejamento</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-      <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Excluir esta aula?</AlertDialogTitle>
-            <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+        <AlertDialog open={!!deleteId} onOpenChange={(v) => !v && setDeleteId(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir esta aula?</AlertDialogTitle>
+              <AlertDialogDescription>Esta ação não pode ser desfeita.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
-      <AlertDialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Limpar todos os registros?</AlertDialogTitle>
-            <AlertDialogDescription>Esta ação apagará TODAS as aulas cadastradas da unidade <strong>{unidade}</strong>. Esta ação não pode ser desfeita.</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleClearRecords} className="bg-destructive hover:bg-destructive/90">Sim, limpar tudo</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </div>
+        <AlertDialog open={clearConfirmOpen} onOpenChange={setClearConfirmOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Limpar todos os registros?</AlertDialogTitle>
+              <AlertDialogDescription>Esta ação apagará TODAS as aulas cadastradas da unidade <strong>{unidade}</strong>. Esta ação não pode ser desfeita.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction onClick={handleClearRecords} className="bg-destructive hover:bg-destructive/90">Sim, limpar tudo</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      </div>
+    </DndContext>
   );
 };
 
