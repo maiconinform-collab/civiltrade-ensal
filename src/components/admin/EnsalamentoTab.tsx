@@ -771,7 +771,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       const newStatus = activeId.replace("status-", "");
       if (overId.startsWith("room-")) {
         const roomName = overId.replace("room-", "");
-        const targetSala = uniqueSalasOptions.find(s => s.nome === roomName);
+        const targetSala = currentSalasOptions.find(s => s.nome === roomName);
         if (targetSala) {
           await handleAlterarStatusSala(targetSala.id, targetSala.nome, newStatus);
         }
@@ -788,7 +788,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
         return;
       }
 
-      const correspondingSala = uniqueSalasOptions.find(s => s.nome === turma.sala);
+      const correspondingSala = currentSalasOptions.find(s => s.nome === turma.sala);
       if (!correspondingSala) {
         toast.error(`Não foi possível encontrar a Sala ${turma.sala} no cadastro de salas.`);
         return;
@@ -804,7 +804,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       const turmaId = String(active.id);
       const turma = rows.find(r => r.id === turmaId);
 
-      const targetSala = uniqueSalasOptions.find(s => s.nome === roomName);
+      const targetSala = currentSalasOptions.find(s => s.nome === roomName);
       if (targetSala) {
         const targetDate = turma?.data || undefined;
         const targetTurno = turma?.turno || undefined;
@@ -903,7 +903,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   const handleConfirmarRemanejamento = async () => {
     if (!remanejarData?.novaSala) return;
 
-    const targetSala = uniqueSalasOptions.find(s => s.nome === remanejarData.novaSala);
+    const targetSala = currentSalasOptions.find(s => s.nome === remanejarData.novaSala);
     if (targetSala) {
       const statusDinamico = getSalaStatusDinamico(targetSala.nome, targetSala.bloco, targetSala.status);
       if (['Manutenção', 'Alagamento', 'Ocupada', 'Defeito Ar'].includes(statusDinamico)) {
@@ -936,7 +936,8 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       const { error: salaError } = await supabase
         .from("salas")
         .update({ status: newStatus })
-        .eq("id", salaId);
+        .eq("nome", salaNome)
+        .eq("unidade", unidade);
       if (salaError) throw salaError;
 
       if (["Manutenção", "Defeito Ar", "Alagamento"].includes(newStatus)) {
@@ -969,8 +970,8 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
   // --- FILTROS E PESQUISA ---
   // Calcula andares e blocos únicos com base em todas as salas que existem no banco, não apenas as que tem aula
-  const andaresUnicos = useMemo(() => Array.from(new Set(uniqueSalasOptions.map(s => getAndarNumero(s.nome)).filter(Boolean))).sort((a, b) => a! - b!), [uniqueSalasOptions]);
-  const blocosUnicos = useMemo(() => Array.from(new Set(uniqueSalasOptions.map(s => s.bloco).filter(Boolean))).sort(), [uniqueSalasOptions]);
+  const andaresUnicos = useMemo(() => Array.from(new Set(currentSalasOptions.map(s => getAndarNumero(s.nome)).filter(Boolean))).sort((a, b) => a! - b!), [currentSalasOptions]);
+  const blocosUnicos = useMemo(() => Array.from(new Set(currentSalasOptions.map(s => s.bloco).filter(Boolean))).sort(), [currentSalasOptions]);
 
   const filtered = useMemo(() => {
     const q = normalizeSearch(search);
@@ -980,7 +981,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       if (turnoFilter !== "todos" && r.turno !== turnoFilter) return false;
 
       if (filterOnlyFreeSalas) {
-        const correspondingSala = uniqueSalasOptions.find((s) => s.nome === r.sala);
+        const correspondingSala = currentSalasOptions.find((s) => s.nome === r.sala);
         const statusDinamico = correspondingSala
           ? getSalaStatusDinamico(correspondingSala.nome, correspondingSala.bloco, correspondingSala.status)
           : "Livre";
@@ -994,7 +995,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       ];
       return fields.some((f) => normalizeSearch(f).includes(q));
     });
-  }, [rows, search, andarFilter, blocoFilter, filterOnlyFreeSalas, uniqueSalasOptions]);
+  }, [rows, search, andarFilter, blocoFilter, filterOnlyFreeSalas, currentSalasOptions]);
 
   const handleSalaSelect = (value: string) => {
     if (value === "__custom__") {
@@ -1600,9 +1601,9 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-muted-foreground font-medium">Alterar Status da Sala {remanejarData?.aula?.sala}:</span>
                         <Select
-                          value={(uniqueSalasOptions || []).find(s => s.nome === remanejarData?.aula?.sala)?.status || "Livre"}
+                          value={(currentSalasOptions || []).find(s => s.nome === remanejarData?.aula?.sala)?.status || "Livre"}
                           onValueChange={async (newStatus) => {
-                            const targetSala = (uniqueSalasOptions || []).find(s => s.nome === remanejarData?.aula?.sala);
+                            const targetSala = (currentSalasOptions || []).find(s => s.nome === remanejarData?.aula?.sala);
                             if (targetSala) {
                               await handleAlterarStatusSala(targetSala.id, targetSala.nome, newStatus);
                             }
@@ -1632,7 +1633,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                       <SelectGroup>
                         {/* GRUPO 1: Salas Livres (Rótulo verde) */}
                         <SelectLabel className="text-green-600 font-bold">Salas Livres</SelectLabel>
-                        {(uniqueSalasOptions || [])
+                        {(currentSalasOptions || [])
                           .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData?.aula?.data || undefined, remanejarData?.aula?.turno) }))
                           .filter(s => s.statusDinamico === 'Livre').map(s => (
                             <SelectItem key={s.id} value={s.nome}>
@@ -1642,7 +1643,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                               </div>
                             </SelectItem>
                           ))}
-                        {(uniqueSalasOptions || [])
+                        {(currentSalasOptions || [])
                           .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData?.aula?.data || undefined, remanejarData?.aula?.turno) }))
                           .filter(s => s.statusDinamico === 'Livre').length === 0 && (
                             <div className="px-8 py-2 text-sm text-muted-foreground">Nenhuma sala livre no momento</div>
@@ -1652,7 +1653,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
                         {/* GRUPO 2: Salas Inativas / Ocupadas (Rótulo cinza/vermelho/roxo) */}
                         <SelectLabel className="text-muted-foreground font-bold mt-2">Salas Inativas / Ocupadas (Bloqueadas)</SelectLabel>
-                        {(uniqueSalasOptions || [])
+                        {(currentSalasOptions || [])
                           .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData?.aula?.data || undefined, remanejarData?.aula?.turno) }))
                           .filter(s => s.statusDinamico !== 'Livre').map(s => (
                             <SelectItem key={s.id} value={s.nome} disabled className="opacity-60">
