@@ -43,6 +43,8 @@ import { CSS } from "@dnd-kit/utilities";
 type Ensalamento = {
   id: string; sala: string; bloco: string | null; turno: string; horario: string;
   professor: string | null; sort_order: number; data: string | null;
+  disciplina: string | null;
+  // Colunas legadas (mantidas para retrocompatibilidade com dados importados)
   segunda: string | null; terca: string | null; quarta: string | null;
   quinta: string | null; sexta: string | null; sabado: string | null;
 };
@@ -50,10 +52,11 @@ type Ensalamento = {
 type SalaOption = { id: string; nome: string; bloco: string | null; status?: string };
 type HorarioOption = { id: string; turno: string; hora_inicio: string; hora_fim: string };
 
-const empty: Omit<Ensalamento, "id" | "sort_order"> = {
-  sala: "", bloco: "", turno: "manha", horario: "", professor: "", data: "",
-  segunda: "", terca: "", quarta: "", quinta: "", sexta: "", sabado: "",
-};
+// Modelo atômico: 1 linha = 1 aula em 1 data específica
+const empty = {
+  sala: "", bloco: "", turno: "manha", horario: "", professor: "",
+  data: "", disciplina: "",
+} as const;
 
 const turnoLabels: Record<string, string> = {
   manha: "Manhã", tarde: "Tarde", noite: "Noite", integral: "Integral",
@@ -216,9 +219,18 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
     const currentTurno = getCurrentTurno(now);
 
+    // Modelo atômico: verifica se existe aula na sala hoje
+    const todayOpts = { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
+    const todayStr = now.toLocaleDateString('pt-BR', todayOpts);
+    const [dd, mm, yyyy] = todayStr.split('/');
+    const todayISO = `${yyyy}-${mm}-${dd}`;
+
     const isOcupada = rows.some((row) => {
       if (row.sala !== salaNome) return false;
       if (row.turno !== currentTurno) return false;
+      // Modelo atômico: tem disciplina e data é hoje
+      if (row.disciplina && row.data === todayISO) return true;
+      // Fallback legado: coluna do dia da semana
       const conteudoHoje = (row as any)[today];
       return conteudoHoje && conteudoHoje.trim() !== "";
     });
@@ -235,15 +247,6 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       return true;
     });
   }, [salasOptions]);
-
-  const [dayData, setDayData] = useState<Record<string, { materia: string; horario: string }>>({
-    segunda: { materia: "", horario: "" },
-    terca: { materia: "", horario: "" },
-    quarta: { materia: "", horario: "" },
-    quinta: { materia: "", horario: "" },
-    sexta: { materia: "", horario: "" },
-    sabado: { materia: "", horario: "" },
-  });
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -501,57 +504,24 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   // --- FUNÇÕES DO CRUD (Criar, Ler, Atualizar, Excluir) ---
   const openNew = () => {
     setEditing(null);
-    setForm(empty);
+    setForm({ ...empty });
     setSalaCustom(false);
     setHorarioCustom(false);
-    setDayData({
-      segunda: { materia: "", horario: "" },
-      terca: { materia: "", horario: "" },
-      quarta: { materia: "", horario: "" },
-      quinta: { materia: "", horario: "" },
-      sexta: { materia: "", horario: "" },
-      sabado: { materia: "", horario: "" },
-    });
+    setFormCalendarOpen(false);
     setOpen(true);
   };
 
-  // --- LÓGICA DE SEPARAÇÃO DIA/HORÁRIO (NOVO LAYOUT) ---
-  const parseDay = (val: string | null) => {
-    if (!val) return { materia: "", horario: "" };
-    if (val.includes(DAY_FIELD_SEPARATOR)) {
-      const [materiaRaw, horarioRaw] = val.split(DAY_FIELD_SEPARATOR, 2);
-      return { materia: materiaRaw?.trim() ?? "", horario: horarioRaw?.trim() ?? "" };
-    }
-    const rangeMatch = val.match(DAY_TIME_RANGE_REGEX);
-    if (rangeMatch) {
-      const horario = rangeMatch[1].replace(/\s*(?:[-–àaté]+)\s*/i, "-").replace(/[hH]s?/g, ":00");
-      const materia = val.replace(DAY_TIME_RANGE_REGEX, "").replace(/\s{2,}/g, " ").trim();
-      return { materia, horario };
-    }
-    const singleMatch = val.match(DAY_TIME_SINGLE_REGEX);
-    if (singleMatch) {
-      const horario = singleMatch[1].replace(/[hH]/g, ":");
-      const materia = val.replace(DAY_TIME_SINGLE_REGEX, "").replace(/\s{2,}/g, " ").trim();
-      return { materia, horario };
-    }
-    return { materia: val, horario: "" };
-  };
-
+  // openEdit: preenche o formulário com dados do modelo atômico
   const openEdit = (r: Ensalamento) => {
     setEditing(r);
     setForm({
-      sala: r.sala, bloco: r.bloco ?? "", turno: r.turno, horario: r.horario,
-      professor: r.professor ?? "", data: r.data ?? "",
-      segunda: r.segunda ?? "", terca: r.terca ?? "", quarta: r.quarta ?? "",
-      quinta: r.quinta ?? "", sexta: r.sexta ?? "", sabado: r.sabado ?? "",
-    });
-    setDayData({
-      segunda: parseDay(r.segunda),
-      terca: parseDay(r.terca),
-      quarta: parseDay(r.quarta),
-      quinta: parseDay(r.quinta),
-      sexta: parseDay(r.sexta),
-      sabado: parseDay(r.sabado),
+      sala: r.sala, 
+      bloco: r.bloco ?? "", 
+      turno: r.turno, 
+      horario: r.horario,
+      professor: r.professor ?? "", 
+      data: r.data ?? "",
+      disciplina: r.disciplina ?? "",
     });
     const salaExists = salasOptions.some((s) => s.nome === r.sala);
     setSalaCustom(!salaExists);
@@ -563,23 +533,17 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
   const handleSave = async () => {
     if (!form.sala || !form.horario || !form.turno) { toast.error("Preencha sala, turno e horário"); return; }
+    if (!form.disciplina) { toast.error("Preencha o nome da disciplina"); return; }
 
-    const combineDay = (materia: string, horario: string) => {
-      if (!materia && !horario) return null;
-      if (materia && horario) return `${materia} ${horario}`;
-      return materia || horario;
-    };
-
+    // Payload atômico: um registro = uma aula em uma data específica
     const payload = {
-      ...form,
-      bloco: form.bloco || null, professor: form.professor || null,
+      sala: form.sala,
+      bloco: form.bloco || null,
+      turno: form.turno,
+      horario: form.horario,
+      professor: form.professor || null,
       data: form.data || null,
-      segunda: combineDay(dayData.segunda.materia, dayData.segunda.horario),
-      terca: combineDay(dayData.terca.materia, dayData.terca.horario),
-      quarta: combineDay(dayData.quarta.materia, dayData.quarta.horario),
-      quinta: combineDay(dayData.quinta.materia, dayData.quinta.horario),
-      sexta: combineDay(dayData.sexta.materia, dayData.sexta.horario),
-      sabado: combineDay(dayData.sabado.materia, dayData.sabado.horario),
+      disciplina: form.disciplina || null,
       unidade,
     };
     const { error } = editing
@@ -589,9 +553,6 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
     toast.success(editing ? "Atualizado" : "Criado");
     setOpen(false); load();
   };
-
-
-
 
 
   const handleDelete = async () => {
@@ -1049,17 +1010,13 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                 <TableRow>
                   <TableHead className="w-8"></TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>Data</TableHead>
                   <TableHead>Sala</TableHead>
                   <TableHead>Bloco</TableHead>
                   <TableHead>Turno</TableHead>
                   <TableHead>Horário</TableHead>
+                  <TableHead>Disciplina</TableHead>
                   <TableHead>Professor</TableHead>
-                  <TableHead>Seg</TableHead>
-                  <TableHead>Ter</TableHead>
-                  <TableHead>Qua</TableHead>
-                  <TableHead>Qui</TableHead>
-                  <TableHead>Sex</TableHead>
-                  <TableHead>Sáb</TableHead>
                   <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -1069,8 +1026,10 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                     <Loader2 className="w-5 h-5 animate-spin inline" />
                   </TableCell></TableRow>
                 ) : filtered.length === 0 ? (
-                  <TableRow><TableCell colSpan={14} className="text-center py-12 text-muted-foreground">
-                    Nenhum registro
+                  <TableRow><TableCell colSpan={10} className="text-center py-12 text-muted-foreground">
+                    {selectedViewDate
+                      ? `Nenhuma aula em ${format(selectedViewDate, "dd/MM/yyyy", { locale: ptBR })}`
+                      : "Nenhum registro"}
                   </TableCell></TableRow>
                 ) : (
                   <SortableContext items={filtered.map(r => r.id)} strategy={verticalListSortingStrategy}>
@@ -1098,17 +1057,25 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                               <span className="text-[10px] uppercase text-muted-foreground">Agendada</span>
                             )}
                           </TableCell>
+                          <TableCell>
+                            {/* Data formatada */}
+                            {r.data
+                              ? <span className="text-xs font-mono bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                                  {format(new Date(r.data + 'T12:00:00'), 'dd/MM', { locale: ptBR })}
+                                </span>
+                              : <span className="text-[10px] text-muted-foreground">Recorrente</span>}
+                          </TableCell>
                           <TableCell className="font-semibold">{r.sala}</TableCell>
                           <TableCell>{r.bloco ?? "—"}</TableCell>
                           <TableCell className="capitalize">{turnoLabels[r.turno] ?? r.turno}</TableCell>
                           <TableCell className="tabular-nums">{r.horario}</TableCell>
+                          <TableCell className="text-sm max-w-48 truncate font-medium">
+                            {/* Modelo atômico: lê disciplina; fallback para dados legados */}
+                            {r.disciplina
+                              ? r.disciplina
+                              : "—"}
+                          </TableCell>
                           <TableCell>{r.professor ?? "—"}</TableCell>
-                          <TableCell className="text-xs max-w-32 truncate">{r.segunda ?? "—"}</TableCell>
-                          <TableCell className="text-xs max-w-32 truncate">{r.terca ?? "—"}</TableCell>
-                          <TableCell className="text-xs max-w-32 truncate">{r.quarta ?? "—"}</TableCell>
-                          <TableCell className="text-xs max-w-32 truncate">{r.quinta ?? "—"}</TableCell>
-                          <TableCell className="text-xs max-w-32 truncate">{r.sexta ?? "—"}</TableCell>
-                          <TableCell className="text-xs max-w-32 truncate">{r.sabado ?? "—"}</TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-1">
                               {/* BOTÃO ADICIONADO: Remanejar Turma */}
@@ -1143,154 +1110,177 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
         {/* --- MODAL DE EDIÇÃO E CRIAÇÃO --- */}
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto glass-strong">
-            <DialogHeader><DialogTitle>{editing ? "Editar aula" : "Nova aula"}</DialogTitle></DialogHeader>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-2">
-              <div className="space-y-2">
-                <Label>Sala * (Apenas números)</Label>
-                {!salaCustom && uniqueSalasOptions.length > 0 ? (
-                  <Select value={form.sala} onValueChange={handleSalaSelect}>
-                    <SelectTrigger><SelectValue placeholder="Selecione uma sala" /></SelectTrigger>
-                    <SelectContent>
-                      {uniqueSalasOptions.map((s) => (
-                        <SelectItem key={s.id} value={s.nome}>{s.nome}{s.bloco ? ` (Bloco ${s.bloco})` : ""}</SelectItem>
-                      ))}
-                      <SelectItem value="__custom__">✏️ Digitar manualmente...</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <div className="flex gap-2">
-                    <Input value={form.sala} onChange={handleSalaChange} placeholder="Ex: 701" className="flex-1" />
-                    {uniqueSalasOptions.length > 0 && <Button variant="outline" size="sm" onClick={() => setSalaCustom(false)}>Selecionar</Button>}
-                  </div>
-                )}
+          <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto glass-strong">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                {editing ? "✏️ Editar aula" : "➕ Nova aula"}
+              </DialogTitle>
+              <p className="text-xs text-muted-foreground mt-1">
+                Modelo atômico: cada registro representa <strong>uma única aula</strong> em uma data/horário específico.
+              </p>
+            </DialogHeader>
+
+            <div className="space-y-4 py-2">
+              {/* LINHA 1: Data + Horário lado a lado */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5 text-sm font-medium">
+                    <CalendarIcon className="w-3.5 h-3.5 text-primary" />
+                    Data da Aula
+                  </Label>
+                  <Popover open={formCalendarOpen} onOpenChange={setFormCalendarOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={`w-full justify-start text-left font-normal h-10 ${
+                          form.data ? "border-primary text-foreground" : "text-muted-foreground"
+                        }`}
+                      >
+                        <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
+                        <span className="truncate text-sm">
+                          {form.data
+                            ? format(new Date(form.data + "T12:00:00"), "dd/MM/yy (EEE)", { locale: ptBR })
+                            : "Selecionar..."}
+                        </span>
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={form.data ? new Date(form.data + "T12:00:00") : undefined}
+                        onSelect={(date) => {
+                          setForm({ ...form, data: date ? format(date, "yyyy-MM-dd") : "" });
+                          setFormCalendarOpen(false);
+                        }}
+                        locale={ptBR}
+                        initialFocus
+                      />
+                      {form.data && (
+                        <div className="p-2 border-t border-border">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full text-muted-foreground hover:text-foreground text-xs"
+                            onClick={() => { setForm({ ...form, data: "" }); setFormCalendarOpen(false); }}
+                          >
+                            <X className="w-3 h-3 mr-1" /> Sem data (recorrente)
+                          </Button>
+                        </div>
+                      )}
+                    </PopoverContent>
+                  </Popover>
+                </div>
+
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium">Horário *</Label>
+                  {!horarioCustom && horariosOptions.length > 0 ? (
+                    <Select value={form.horario} onValueChange={handleHorarioSelect}>
+                      <SelectTrigger className="h-10"><SelectValue placeholder="Selecione um horário" /></SelectTrigger>
+                      <SelectContent>
+                        {horariosOptions.map((h) => {
+                          const val = `${h.hora_inicio}-${h.hora_fim}`;
+                          return <SelectItem key={h.id} value={val}>{val} ({turnoLabels[h.turno] ?? h.turno})</SelectItem>;
+                        })}
+                        <SelectItem value="__custom__">✏️ Digitar manualmente...</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="flex gap-2">
+                      <Input value={form.horario} onChange={(e) => setForm({ ...form, horario: e.target.value })} placeholder="08:00-10:00" className="flex-1 h-10" />
+                      {horariosOptions.length > 0 && <Button variant="outline" size="sm" onClick={() => setHorarioCustom(false)}>↩</Button>}
+                    </div>
+                  )}
+                </div>
               </div>
 
-              <div className="space-y-2"><Label>Bloco</Label><Input value={form.bloco ?? ""} onChange={(e) => setForm({ ...form, bloco: e.target.value })} placeholder="Ex: A" /></div>
-
+              {/* LINHA 2: Disciplina (full width — campo principal) */}
               <div className="space-y-2">
-                <Label>Turno *</Label>
+                <Label className="text-sm font-medium">Disciplina *</Label>
+                <Input
+                  value={form.disciplina ?? ""}
+                  onChange={(e) => setForm({ ...form, disciplina: e.target.value })}
+                  placeholder="Ex: Anatomia Humana, Cálculo II, Direito Civil..."
+                  className="h-10 text-sm"
+                />
+              </div>
+
+              {/* LINHA 3: Professor + Sala + Bloco */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-2 col-span-1">
+                  <Label className="text-sm font-medium">Professor</Label>
+                  <Input
+                    value={form.professor ?? ""}
+                    onChange={(e) => setForm({ ...form, professor: e.target.value })}
+                    placeholder="Nome do prof..."
+                    className="h-10 text-sm"
+                  />
+                </div>
+
+                <div className="space-y-2 col-span-1">
+                  <Label className="text-sm font-medium">Sala *</Label>
+                  {!salaCustom && uniqueSalasOptions.length > 0 ? (
+                    <Select value={form.sala} onValueChange={handleSalaSelect}>
+                      <SelectTrigger className="h-10"><SelectValue placeholder="Sala" /></SelectTrigger>
+                      <SelectContent>
+                        {uniqueSalasOptions.map((s) => (
+                          <SelectItem key={s.id} value={s.nome}>{s.nome}{s.bloco ? ` (Bl. ${s.bloco})` : ""}</SelectItem>
+                        ))}
+                        <SelectItem value="__custom__">✏️ Digitar...</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="flex gap-1">
+                      <Input value={form.sala} onChange={handleSalaChange} placeholder="703" className="flex-1 h-10 text-sm" />
+                      {uniqueSalasOptions.length > 0 && <Button variant="outline" size="sm" className="h-10 px-2" onClick={() => setSalaCustom(false)}>↩</Button>}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2 col-span-1">
+                  <Label className="text-sm font-medium">Bloco</Label>
+                  <Input
+                    value={form.bloco ?? ""}
+                    onChange={(e) => setForm({ ...form, bloco: e.target.value })}
+                    placeholder="Ex: A"
+                    className="h-10 text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* LINHA 4: Turno */}
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Turno *</Label>
                 <Select value={form.turno} onValueChange={(v) => setForm({ ...form, turno: v })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="h-10"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="manha">Manhã</SelectItem>
-                    <SelectItem value="tarde">Tarde</SelectItem>
-                    <SelectItem value="noite">Noite</SelectItem>
-                    <SelectItem value="integral">Integral</SelectItem>
+                    <SelectItem value="manha">☀️ Manhã</SelectItem>
+                    <SelectItem value="tarde">🌤️ Tarde</SelectItem>
+                    <SelectItem value="noite">🌙 Noite</SelectItem>
+                    <SelectItem value="integral">📚 Integral</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Horário *</Label>
-                {!horarioCustom && horariosOptions.length > 0 ? (
-                  <Select value={form.horario} onValueChange={handleHorarioSelect}>
-                    <SelectTrigger><SelectValue placeholder="Selecione um horário" /></SelectTrigger>
-                    <SelectContent>
-                      {horariosOptions.map((h) => {
-                        const val = `${h.hora_inicio}-${h.hora_fim}`;
-                        return <SelectItem key={h.id} value={val}>{val} ({turnoLabels[h.turno] ?? h.turno})</SelectItem>;
-                      })}
-                      <SelectItem value="__custom__">✏️ Digitar manualmente...</SelectItem>
-                    </SelectContent>
-                  </Select>
-                ) : (
-                  <div className="flex gap-2">
-                    <Input value={form.horario} onChange={(e) => setForm({ ...form, horario: e.target.value })} placeholder="08:00-10:00" className="flex-1" />
-                    {horariosOptions.length > 0 && <Button variant="outline" size="sm" onClick={() => setHorarioCustom(false)}>Selecionar</Button>}
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-2 md:col-span-2"><Label>Professor</Label><Input value={form.professor ?? ""} onChange={(e) => setForm({ ...form, professor: e.target.value })} /></div>
-
-              {/* DATE PICKER — Data Específica da Aula */}
-              <div className="space-y-2 md:col-span-2">
-                <Label className="flex items-center gap-1.5">
-                  <CalendarIcon className="w-3.5 h-3.5 text-primary" />
-                  Data da Aula
-                  <span className="text-[10px] text-muted-foreground font-normal">(deixe em branco para aulas semanais recorrentes)</span>
-                </Label>
-                <Popover open={formCalendarOpen} onOpenChange={setFormCalendarOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className={`w-full justify-start text-left font-normal ${
-                        form.data ? "border-primary text-foreground" : "text-muted-foreground"
-                      }`}
-                    >
-                      <CalendarIcon className="mr-2 h-4 w-4" />
-                      {form.data
-                        ? format(new Date(form.data + "T12:00:00"), "dd/MM/yyyy (EEEE)", { locale: ptBR })
-                        : "Selecionar data específica..."}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-auto p-0" align="start">
-                    <Calendar
-                      mode="single"
-                      selected={form.data ? new Date(form.data + "T12:00:00") : undefined}
-                      onSelect={(date) => {
-                        setForm({ ...form, data: date ? format(date, "yyyy-MM-dd") : "" });
-                        setFormCalendarOpen(false);
-                      }}
-                      locale={ptBR}
-                      initialFocus
-                    />
-                    {form.data && (
-                      <div className="p-2 border-t border-border">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="w-full text-muted-foreground hover:text-foreground"
-                          onClick={() => {
-                            setForm({ ...form, data: "" });
-                            setFormCalendarOpen(false);
-                          }}
-                        >
-                          <X className="w-3 h-3 mr-1" /> Limpar (aula recorrente)
-                        </Button>
-                      </div>
-                    )}
-                  </PopoverContent>
-                </Popover>
-              </div>
-
-              <div className="md:col-span-2 mt-2"><h3 className="font-semibold border-b border-border pb-2">Dias da Semana (Disciplina e Horário Específico)</h3></div>
-
-              {(["segunda", "terca", "quarta", "quinta", "sexta", "sabado"] as const).map((d) => {
-                return (
-                  <div key={d} className="space-y-2 md:col-span-2">
-                    <Label className="capitalize">{d === "terca" ? "Terça" : d === "sabado" ? "Sábado" : d}</Label>
-                    <div className="flex gap-2">
-                      <Input
-                        value={dayData[d]?.materia || ""}
-                        onChange={(e) => setDayData({
-                          ...dayData,
-                          [d]: { ...dayData[d], materia: e.target.value }
-                        })}
-                        placeholder="Nome da Disciplina"
-                        className="flex-[2]"
-                      />
-                      <Input
-                        value={dayData[d]?.horario || ""}
-                        onChange={(e) => setDayData({
-                          ...dayData,
-                          [d]: { ...dayData[d], horario: e.target.value }
-                        })}
-                        placeholder="Ex: 08:00-11:20"
-                        className="flex-1"
-                      />
-                    </div>
-                  </div>
-                );
-              })}
+              {/* Resumo visual do que será salvo */}
+              {(form.disciplina || form.horario) && (
+                <div className="p-3 rounded-xl bg-primary/5 border border-primary/20 text-xs space-y-1">
+                  <p className="font-semibold text-primary text-xs uppercase tracking-wide">Preview do registro</p>
+                  {form.data && <p>📅 <strong>{format(new Date(form.data + "T12:00:00"), "EEEE, dd 'de' MMMM 'de' yyyy", { locale: ptBR })}</strong></p>}
+                  {form.horario && <p>⏰ <strong>{form.horario}</strong></p>}
+                  {form.disciplina && <p>📝 {form.disciplina}</p>}
+                  {form.professor && <p>👤 {form.professor}</p>}
+                  {form.sala && <p>🏠 Sala {form.sala}{form.bloco ? `, Bloco ${form.bloco}` : ""}</p>}
+                </div>
+              )}
             </div>
+
             <DialogFooter>
               <Button variant="outline" onClick={() => setOpen(false)}>Cancelar</Button>
               <Button onClick={handleSave} className="gradient-brand border-0">{editing ? "Salvar" : "Criar"}</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
 
         {/* MODAL DE REMANEJAMENTO */}
         <Dialog open={!!remanejarData} onOpenChange={(v) => !v && setRemanejarData(null)}>
@@ -1301,7 +1291,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                 <div className="p-4 bg-muted/50 rounded-lg border border-border">
                   <p className="text-sm text-muted-foreground mb-1">Disciplina / Detalhes</p>
                   <p className="font-medium text-foreground">
-                    {remanejarData.aula.segunda || remanejarData.aula.terca || remanejarData.aula.quarta || remanejarData.aula.quinta || remanejarData.aula.sexta || remanejarData.aula.sabado || remanejarData.aula.professor || "Aula sem disciplina especificada"}
+                    {remanejarData.aula.disciplina || remanejarData.aula.segunda || remanejarData.aula.terca || remanejarData.aula.quarta || remanejarData.aula.professor || "Aula sem disciplina especificada"}
                   </p>
                   <div className="flex items-center gap-2 mt-2">
                     <span className="text-sm text-muted-foreground">Sala atual:</span>

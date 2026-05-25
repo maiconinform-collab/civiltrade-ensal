@@ -18,6 +18,9 @@ type Ensalamento = {
   horario: string;
   professor: string | null;
   sort_order: number;
+  data: string | null;
+  disciplina: string | null;
+  // Colunas legadas (retrocompatibilidade)
   segunda: string | null;
   terca: string | null;
   quarta: string | null;
@@ -55,8 +58,16 @@ const TVKiosk = () => {
 
   const load = async () => {
     try {
+      // Modelo atômico: busca aulas da data de hoje (fuso BR)
+      const todayOpts = { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
+      const todayStr = new Date().toLocaleDateString('pt-BR', todayOpts);
+      const [dd, mm, yyyy] = todayStr.split('/');
+      const todayISO = `${yyyy}-${mm}-${dd}`;
+
       const [ens, ev, av] = await Promise.all([
-        supabase.from("ensalamento").select("*").eq("unidade", currentUnidade).order("turno").order("horario"),
+        supabase.from("ensalamento").select("*").eq("unidade", currentUnidade)
+          .or(`data.eq.${todayISO},data.is.null`) // modelo atômico + fallback legado
+          .order("turno").order("horario"),
         supabase.from("auditorio_eventos").select("*").eq("unidade", currentUnidade).gte("fim", new Date().toISOString()).order("inicio").limit(10),
         supabase.from("avisos").select("*").eq("unidade", currentUnidade).eq("ativo", true).order("ordem"),
       ]);
@@ -96,27 +107,31 @@ const TVKiosk = () => {
   const today = dayKey(now);
   const singleTimeDurationMinutes = settings.single_time_duration_minutes ?? 60;
 
-  // Sorted by sort_order, then by room number (ascending)
+  // Sorted: suporta modelo atômico (disciplina) e fallback legado (r[today])
   const sorted = useMemo(() => {
-    if (!today) return [];
     const list = rows
       .map((r) => {
+        // Modelo atômico: usa disciplina diretamente
+        if (r.disciplina && r.disciplina.trim().length > 0) {
+          return { ...r, disciplina: r.disciplina };
+        }
+        // Fallback legado: lê a coluna do dia da semana
+        if (!today) return null;
         let rawDisciplina = (r as any)[today] as string | null;
+        if (!rawDisciplina || rawDisciplina.trim().length === 0) return null;
+
         let disciplina = rawDisciplina;
         let horarioOverride = r.horario;
-
-        if (rawDisciplina) {
-          // Busca um horário em formatos como 08:00-11:20, 8h-12h, 8hs às 12hs em qualquer parte do texto
-          const timeRegex = /\b(\d{1,2}[:hH]\d{0,2}\s*[-–àaté]+\s*\d{1,2}[:hH]\d{0,2})\b/i;
-          const match = rawDisciplina.match(timeRegex);
-          if (match) {
-            horarioOverride = match[1].replace(/\s*(?:[-–àaté]+)\s*/i, "-").replace(/[hH]s?/g, ":00");
-            disciplina = rawDisciplina.replace(timeRegex, "").replace(/\s{2,}/g, " ").trim();
-          }
+        const timeRegex = /\b(\d{1,2}[:hH]\d{0,2}\s*[-–àaté]+\s*\d{1,2}[:hH]\d{0,2})\b/i;
+        const match = rawDisciplina.match(timeRegex);
+        if (match) {
+          horarioOverride = match[1].replace(/\s*(?:[-–àaté]+)\s*/i, "-").replace(/[hH]s?/g, ":00");
+          disciplina = rawDisciplina.replace(timeRegex, "").replace(/\s{2,}/g, " ").trim();
         }
         return { ...r, disciplina, horario: horarioOverride };
       })
-      .filter((r) => r.disciplina && r.disciplina.trim().length > 0);
+      .filter((r): r is Ensalamento & { disciplina: string } => r !== null && r.disciplina !== null && r.disciplina.trim().length > 0);
+
     return list.sort((a, b) => {
       if (a.sort_order !== b.sort_order) return (a.sort_order || 0) - (b.sort_order || 0);
       return salaToNumber(a.sala) - salaToNumber(b.sala);

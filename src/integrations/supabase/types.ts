@@ -112,6 +112,7 @@ export type Database = {
           bloco: string | null
           created_at: string | null
           data: string | null
+          disciplina: string | null
           horario: string
           id: string
           observacoes: string | null
@@ -130,6 +131,7 @@ export type Database = {
           bloco?: string | null
           created_at?: string | null
           data?: string | null
+          disciplina?: string | null
           horario: string
           id?: string
           observacoes?: string | null
@@ -148,6 +150,7 @@ export type Database = {
           bloco?: string | null
           created_at?: string | null
           data?: string | null
+          disciplina?: string | null
           horario?: string
           id?: string
           observacoes?: string | null
