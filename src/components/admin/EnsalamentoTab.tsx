@@ -405,23 +405,23 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
     if (isSyncing.current || currentSalas.length > 0 || currentRows.length === 0) return;
     isSyncing.current = true;
 
-    // Filtra salas únicas das aulas
-    const uniqueRooms = Array.from(new Set(currentRows.map(r => r.sala).filter(Boolean)));
-    
-    // Inclusão das salas do 11º andar obrigatórias
-    const baseRooms11 = ["1101", "1102", "1103", "1104"];
-    baseRooms11.forEach(sala => {
-      if (!uniqueRooms.includes(sala)) uniqueRooms.push(sala);
-    });
+    // Inclusão das salas do 11º andar obrigatórias SOMENTE para patamares
+    if (unidade === 'patamares') {
+      const baseRooms11 = ["1101", "1102", "1103", "1104"];
+      baseRooms11.forEach(sala => {
+        if (!uniqueRooms.includes(sala)) uniqueRooms.push(sala);
+      });
+    }
 
     if (uniqueRooms.length === 0) return;
 
     try {
       const salasParaInserir = uniqueRooms.map(salaNome => {
         const correspondingRow = currentRows.find(r => r.sala === salaNome);
+        const isAndar11 = ["1101", "1102", "1103", "1104"].includes(salaNome);
         return {
           nome: salaNome,
-          bloco: correspondingRow?.bloco || null,
+          bloco: isAndar11 ? "11º Andar" : (correspondingRow?.bloco || null),
           status: "Livre",
           unidade: unidade
         };
@@ -804,12 +804,14 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   const handleClearRecords = async () => {
     setLoading(true);
     const { error } = await supabase.from("ensalamento").delete().eq("unidade", unidade);
-    if (error) {
-      toast.error("Erro ao limpar registros", { description: error.message });
+    const { error: errorSalas } = await supabase.from("salas").delete().eq("unidade", unidade);
+    if (error || errorSalas) {
+      toast.error("Erro ao limpar registros", { description: error?.message || errorSalas?.message });
     } else {
-      toast.success("Todos os registros da unidade foram limpos!");
+      toast.success("Todos os registros e salas da unidade foram limpos!");
       setClearConfirmOpen(false);
-      setRows([]); // <--- Fixes the counter state bug
+      setRows([]);
+      setSalasOptions([]);
       load();
       loadOptions();
     }
@@ -1494,26 +1496,31 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
         <Dialog open={!!remanejarData} onOpenChange={(v) => !v && setRemanejarData(null)}>
           <DialogContent className="glass-strong">
             <DialogHeader><DialogTitle>Remanejar Turma</DialogTitle></DialogHeader>
-            {remanejarData?.aula ? (
+            {loading || !remanejarData || !remanejarData.aula ? (
+              <div className="py-8 flex flex-col items-center justify-center">
+                 <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                 <p className="mt-4 text-sm text-muted-foreground">Carregando dados da sala...</p>
+              </div>
+            ) : (
               <div className="space-y-4 py-2">
                 <div className="p-4 bg-muted/50 rounded-lg border border-border">
                   <p className="text-sm text-muted-foreground mb-1">Disciplina / Detalhes</p>
                   <p className="font-medium text-foreground">
-                    {remanejarData.aula.disciplina || remanejarData.aula.segunda || remanejarData.aula.terca || remanejarData.aula.quarta || remanejarData.aula.professor || "Aula sem disciplina especificada"}
+                    {remanejarData?.aula?.disciplina || remanejarData?.aula?.segunda || remanejarData?.aula?.terca || remanejarData?.aula?.quarta || remanejarData?.aula?.professor || "Aula sem disciplina especificada"}
                   </p>
                   <div className="flex items-center gap-2 mt-2">
                     <span className="text-sm text-muted-foreground">Sala atual:</span>
-                    <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-md text-sm font-semibold">{remanejarData.aula.sala || "Sem sala"}</span>
+                    <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-md text-sm font-semibold">{remanejarData?.aula?.sala || "Sem sala"}</span>
                   </div>
 
-                  {remanejarData.aula.sala && (
+                  {remanejarData?.aula?.sala && (
                     <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-border/50 animate-fade-in">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground font-medium">Alterar Status da Sala {remanejarData.aula.sala}:</span>
+                        <span className="text-xs text-muted-foreground font-medium">Alterar Status da Sala {remanejarData?.aula?.sala}:</span>
                         <Select
-                          value={uniqueSalasOptions?.find(s => s.nome === remanejarData.aula.sala)?.status || "Livre"}
+                          value={(uniqueSalasOptions || []).find(s => s.nome === remanejarData?.aula?.sala)?.status || "Livre"}
                           onValueChange={async (newStatus) => {
-                            const targetSala = uniqueSalasOptions?.find(s => s.nome === remanejarData.aula.sala);
+                            const targetSala = (uniqueSalasOptions || []).find(s => s.nome === remanejarData?.aula?.sala);
                             if (targetSala) {
                               await handleAlterarStatusSala(targetSala.id, targetSala.nome, newStatus);
                             }
@@ -1543,8 +1550,8 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                       <SelectGroup>
                         {/* GRUPO 1: Salas Livres (Rótulo verde) */}
                         <SelectLabel className="text-green-600 font-bold">Salas Livres</SelectLabel>
-                        {(uniqueSalasOptions ?? [])
-                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData.aula.data || undefined, remanejarData.aula.turno) }))
+                        {(uniqueSalasOptions || [])
+                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData?.aula?.data || undefined, remanejarData?.aula?.turno) }))
                           .filter(s => s.statusDinamico === 'Livre').map(s => (
                             <SelectItem key={s.id} value={s.nome}>
                               <div className="flex items-center gap-2">
@@ -1553,8 +1560,8 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                               </div>
                             </SelectItem>
                           ))}
-                        {(uniqueSalasOptions ?? [])
-                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData.aula.data || undefined, remanejarData.aula.turno) }))
+                        {(uniqueSalasOptions || [])
+                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData?.aula?.data || undefined, remanejarData?.aula?.turno) }))
                           .filter(s => s.statusDinamico === 'Livre').length === 0 && (
                           <div className="px-8 py-2 text-sm text-muted-foreground">Nenhuma sala livre no momento</div>
                         )}
@@ -1563,8 +1570,8 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                         
                         {/* GRUPO 2: Salas Inativas / Ocupadas (Rótulo cinza/vermelho/roxo) */}
                         <SelectLabel className="text-muted-foreground font-bold mt-2">Salas Inativas / Ocupadas (Bloqueadas)</SelectLabel>
-                        {(uniqueSalasOptions ?? [])
-                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData.aula.data || undefined, remanejarData.aula.turno) }))
+                        {(uniqueSalasOptions || [])
+                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData?.aula?.data || undefined, remanejarData?.aula?.turno) }))
                           .filter(s => s.statusDinamico !== 'Livre').map(s => (
                             <SelectItem key={s.id} value={s.nome} disabled className="opacity-60">
                               <div className="flex items-center gap-2">
@@ -1581,15 +1588,10 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                   </Select>
                 </div>
               </div>
-            ) : (
-              <div className="py-8 flex flex-col items-center justify-center">
-                 <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                 <p className="mt-4 text-sm text-muted-foreground">Carregando dados da sala...</p>
-              </div>
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setRemanejarData(null)}>Cancelar</Button>
-              <Button onClick={handleConfirmarRemanejamento} disabled={!remanejarData?.novaSala || remanejarData.novaSala === remanejarData?.aula?.sala} className="gradient-brand border-0">Confirmar Remanejamento</Button>
+              <Button onClick={handleConfirmarRemanejamento} disabled={!remanejarData?.novaSala || remanejarData?.novaSala === remanejarData?.aula?.sala} className="gradient-brand border-0">Confirmar Remanejamento</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

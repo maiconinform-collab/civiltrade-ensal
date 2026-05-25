@@ -29,11 +29,11 @@ const DashboardTab = ({ unidade }: { unidade: string }) => {
     setS({ aulas: 0, professores: 0, disciplinas: 0, salas: 0, horarios: 0, media_ratings: 0, total_ratings: 0, low_ratings: 0 });
     
     const load = async () => {
-      const [a, p, d, sa, h, rt] = await Promise.all([
+      const [a, p, d, saRes, h, rt] = await Promise.all([
         supabase.from("ensalamento").select("id", { count: "exact", head: true }).eq("unidade", unidade),
         supabase.from("professores").select("id", { count: "exact", head: true }).eq("unidade", unidade),
         supabase.from("disciplinas").select("id", { count: "exact", head: true }).eq("unidade", unidade),
-        supabase.from("salas").select("id", { count: "exact", head: true }).eq("unidade", unidade),
+        supabase.from("salas").select("nome").eq("unidade", unidade),
         supabase.from("horarios").select("id", { count: "exact", head: true }).eq("unidade", unidade),
         supabase.from("ratings").select("rating").eq("unidade", unidade)
       ]);
@@ -41,6 +41,10 @@ const DashboardTab = ({ unidade }: { unidade: string }) => {
       let media = 0;
       let low = 0;
       const ratings = rt.data || [];
+      
+      // Contagem distinta (anti-duplicatas) baseada no nome
+      const rawSalas = saRes.data || [];
+      const distinctSalas = new Set(rawSalas.map(s => s.nome)).size;
       if (ratings.length > 0) {
         media = ratings.reduce((acc, curr) => acc + curr.rating, 0) / ratings.length;
         low = ratings.filter(r => r.rating <= 2).length;
@@ -48,7 +52,7 @@ const DashboardTab = ({ unidade }: { unidade: string }) => {
 
       setS({
         aulas: a.count ?? 0, professores: p.count ?? 0, disciplinas: d.count ?? 0,
-        salas: sa.count ?? 0, horarios: h.count ?? 0,
+        salas: distinctSalas, horarios: h.count ?? 0,
         media_ratings: media, total_ratings: ratings.length, low_ratings: low
       });
     };
