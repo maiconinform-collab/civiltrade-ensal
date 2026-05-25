@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel,
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue, SelectGroup, SelectLabel, SelectSeparator,
 } from "@/components/ui/select";
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
@@ -262,6 +262,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   const [formCalendarOpen, setFormCalendarOpen] = useState(false);
 
   const [remanejarData, setRemanejarData] = useState<{ aula: Ensalamento, novaSala: string } | null>(null);
+  const [loadingModal, setLoadingModal] = useState(false);
 
   const [salasOptions, setSalasOptions] = useState<SalaOption[]>([]);
   const [horariosOptions, setHorariosOptions] = useState<HorarioOption[]>([]);
@@ -893,10 +894,11 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   const handleRemanejarTurma = async (id: string) => {
     const aula = rows.find(r => r.id === id);
     if (aula) {
-      setLoading(true);
-      await loadOptions(); // Busca dados atualizados (status) do banco instantes antes de abrir o modal
-      setLoading(false);
+      // Abre o modal primeiro para evitar tela em branco
       setRemanejarData({ aula, novaSala: "" });
+      setLoadingModal(true);
+      await loadOptions(); // Busca dados atualizados (status) do banco instantes antes de exibir as opções
+      setLoadingModal(false);
     }
   };
 
@@ -931,7 +933,12 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   };
 
   const handleAlterarStatusSala = async (salaId: string, salaNome: string, newStatus: string) => {
-    setLoading(true);
+    // ✅ FIX: Atualiza o estado local OTIMISTICAMENTE antes mesmo do refetch,
+    // garantindo que o card mude de cor/texto instantaneamente na tela.
+    setSalasOptions(prev =>
+      prev.map(s => s.nome === salaNome ? { ...s, status: newStatus } : s)
+    );
+
     try {
       const { error: salaError } = await supabase
         .from("salas")
@@ -952,8 +959,9 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
         toast.success(`Status da Sala ${salaNome} alterado para ${newStatus}!`);
       }
 
-      await load();
-      await loadOptions();
+      // Refetch em background para sincronizar com o banco (sem bloquear a UI)
+      load();
+      loadOptions();
 
       if (remanejarData && remanejarData.aula.sala === salaNome && ["Manutenção", "Defeito Ar", "Alagamento"].includes(newStatus)) {
         setRemanejarData({
@@ -962,9 +970,12 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
         });
       }
     } catch (err: any) {
+      // Reverte o estado otimista em caso de erro
+      setSalasOptions(prev =>
+        prev.map(s => s.nome === salaNome ? { ...s, status: s.status } : s)
+      );
+      loadOptions(); // Re-sincroniza com o banco para garantir estado correto
       toast.error("Erro ao alterar status da sala", { description: err.message });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -1577,39 +1588,41 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
         {/* MODAL DE REMANEJAMENTO */}
         <Dialog open={!!remanejarData} onOpenChange={(v) => !v && setRemanejarData(null)}>
-          <DialogContent className="glass-strong">
-            <DialogHeader><DialogTitle>Remanejar Turma</DialogTitle></DialogHeader>
-            {loading || !remanejarData || !remanejarData.aula ? (
+          <DialogContent className="glass-strong max-w-lg">
+            <DialogHeader><DialogTitle>🔁 Remanejar Turma</DialogTitle></DialogHeader>
+            {/* ✅ FIX: Usa loadingModal em vez de loading para não bloquear o conteúdo do modal */}
+            {loadingModal ? (
               <div className="py-8 flex flex-col items-center justify-center">
                 <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                <p className="mt-4 text-sm text-muted-foreground">Carregando dados da sala...</p>
+                <p className="mt-4 text-sm text-muted-foreground">Carregando salas disponíveis...</p>
               </div>
-            ) : (
+            ) : !remanejarData ? null : (
               <div className="space-y-4 py-2">
+                {/* Informações da turma atual */}
                 <div className="p-4 bg-muted/50 rounded-lg border border-border">
                   <p className="text-sm text-muted-foreground mb-1">Disciplina / Detalhes</p>
                   <p className="font-medium text-foreground">
-                    {remanejarData?.aula?.disciplina || remanejarData?.aula?.segunda || remanejarData?.aula?.terca || remanejarData?.aula?.quarta || remanejarData?.aula?.professor || "Aula sem disciplina especificada"}
+                    {remanejarData.aula.disciplina || remanejarData.aula.segunda || remanejarData.aula.terca || remanejarData.aula.quarta || remanejarData.aula.professor || "Aula sem disciplina especificada"}
                   </p>
                   <div className="flex items-center gap-2 mt-2">
                     <span className="text-sm text-muted-foreground">Sala atual:</span>
-                    <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-md text-sm font-semibold">{remanejarData?.aula?.sala || "Sem sala"}</span>
+                    <span className="px-2 py-0.5 bg-primary/10 text-primary rounded-md text-sm font-semibold">{remanejarData.aula.sala || "Sem sala"}</span>
                   </div>
 
-                  {remanejarData?.aula?.sala && (
+                  {remanejarData.aula.sala && (
                     <div className="flex flex-col gap-2 mt-2 pt-2 border-t border-border/50 animate-fade-in">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground font-medium">Alterar Status da Sala {remanejarData?.aula?.sala}:</span>
+                        <span className="text-xs text-muted-foreground font-medium">Alterar Status da Sala {remanejarData.aula.sala}:</span>
                         <Select
-                          value={(currentSalasOptions || []).find(s => s.nome === remanejarData?.aula?.sala)?.status || "Livre"}
+                          value={(currentSalasOptions || fallbackSalasOptions).find(s => s.nome === remanejarData.aula.sala)?.status || "Livre"}
                           onValueChange={async (newStatus) => {
-                            const targetSala = (currentSalasOptions || []).find(s => s.nome === remanejarData?.aula?.sala);
+                            const targetSala = (currentSalasOptions || fallbackSalasOptions).find(s => s.nome === remanejarData.aula.sala);
                             if (targetSala) {
                               await handleAlterarStatusSala(targetSala.id, targetSala.nome, newStatus);
                             }
                           }}
                         >
-                          <SelectTrigger className="w-[150px] h-8 text-xs">
+                          <SelectTrigger className="w-[160px] h-8 text-xs">
                             <SelectValue placeholder="Status..." />
                           </SelectTrigger>
                           <SelectContent>
@@ -1625,43 +1638,73 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                   )}
                 </div>
 
+                {/* ✅ ALERTA INTELIGENTE: Aviso quando sala selecionada tem problema */}
+                {remanejarData.novaSala && (() => {
+                  const salaAlvo = (currentSalasOptions || fallbackSalasOptions).find(s => s.nome === remanejarData.novaSala);
+                  const statusAlvo = salaAlvo ? getSalaStatusDinamico(salaAlvo.nome, salaAlvo.bloco, salaAlvo.status, remanejarData.aula.data || undefined, remanejarData.aula.turno) : 'Livre';
+                  if (statusAlvo !== 'Livre') {
+                    const statusIcons: Record<string, string> = {
+                      'Manutenção': '🔧', 'Defeito Ar': '⚠️', 'Alagamento': '🌊', 'Ocupada': '🔴'
+                    };
+                    return (
+                      <div className="flex items-start gap-3 p-3 rounded-xl border-2 border-amber-500/60 bg-amber-500/10 animate-fade-in">
+                        <span className="text-xl mt-0.5">{statusIcons[statusAlvo] || '⚠️'}</span>
+                        <div>
+                          <p className="text-sm font-bold text-amber-700 dark:text-amber-400">
+                            Atenção: Sala {remanejarData.novaSala} com problema!
+                          </p>
+                          <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">
+                            Esta sala está atualmente com status <strong>"{statusAlvo}"</strong>. Confirmar o remanejamento pode resultar em conflito operacional. Verifique antes de prosseguir.
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+
                 <div className="space-y-2">
                   <Label>Selecione a Nova Sala</Label>
+                  {/* ✅ FIX: Usa encadeamento opcional seguro com fallback para garantir lista sempre visível */}
                   <Select value={remanejarData.novaSala} onValueChange={(v) => setRemanejarData({ ...remanejarData, novaSala: v })}>
                     <SelectTrigger><SelectValue placeholder="Escolha uma sala..." /></SelectTrigger>
                     <SelectContent>
                       <SelectGroup>
                         {/* GRUPO 1: Salas Livres (Rótulo verde) */}
-                        <SelectLabel className="text-green-600 font-bold">Salas Livres</SelectLabel>
-                        {(currentSalasOptions || [])
-                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData?.aula?.data || undefined, remanejarData?.aula?.turno) }))
+                        <SelectLabel className="text-green-600 font-bold">✅ Salas Livres</SelectLabel>
+                        {(currentSalasOptions.length > 0 ? currentSalasOptions : fallbackSalasOptions)
+                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData.aula.data || undefined, remanejarData.aula.turno) }))
                           .filter(s => s.statusDinamico === 'Livre').map(s => (
                             <SelectItem key={s.id} value={s.nome}>
                               <div className="flex items-center gap-2">
                                 <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                                <span>Sala {s.nome} {s.bloco ? `(Bloco ${s.bloco})` : ""} ({s.statusDinamico})</span>
+                                <span>Sala {s.nome}{s.bloco ? ` (${s.bloco})` : ""}</span>
                               </div>
                             </SelectItem>
                           ))}
-                        {(currentSalasOptions || [])
-                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData?.aula?.data || undefined, remanejarData?.aula?.turno) }))
+                        {(currentSalasOptions.length > 0 ? currentSalasOptions : fallbackSalasOptions)
+                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData.aula.data || undefined, remanejarData.aula.turno) }))
                           .filter(s => s.statusDinamico === 'Livre').length === 0 && (
                             <div className="px-8 py-2 text-sm text-muted-foreground">Nenhuma sala livre no momento</div>
                           )}
 
                         <SelectSeparator />
 
-                        {/* GRUPO 2: Salas Inativas / Ocupadas (Rótulo cinza/vermelho/roxo) */}
-                        <SelectLabel className="text-muted-foreground font-bold mt-2">Salas Inativas / Ocupadas (Bloqueadas)</SelectLabel>
-                        {(currentSalasOptions || [])
-                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData?.aula?.data || undefined, remanejarData?.aula?.turno) }))
+                        {/* GRUPO 2: Salas com Problemas (selecionáveis mas com aviso) */}
+                        <SelectLabel className="text-amber-600 dark:text-amber-400 font-bold mt-2">⚠️ Salas com Restrições</SelectLabel>
+                        {(currentSalasOptions.length > 0 ? currentSalasOptions : fallbackSalasOptions)
+                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData.aula.data || undefined, remanejarData.aula.turno) }))
                           .filter(s => s.statusDinamico !== 'Livre').map(s => (
-                            <SelectItem key={s.id} value={s.nome} disabled className="opacity-60">
+                            <SelectItem key={s.id} value={s.nome}>
                               <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${s.statusDinamico === 'Ocupada' ? 'bg-red-500' : 'bg-purple-500'
-                                  }`}></div>
-                                <span className="line-through">Sala {s.nome} {s.bloco ? `(Bloco ${s.bloco})` : ""}</span>
-                                <span className="text-xs ml-auto">({s.statusDinamico})</span>
+                                <div className={`w-2 h-2 rounded-full ${
+                                  s.statusDinamico === 'Ocupada' ? 'bg-red-500' :
+                                  s.statusDinamico === 'Manutenção' ? 'bg-purple-500' :
+                                  s.statusDinamico === 'Defeito Ar' ? 'bg-amber-500' :
+                                  'bg-blue-500'
+                                }`}></div>
+                                <span>Sala {s.nome}{s.bloco ? ` (${s.bloco})` : ""}</span>
+                                <span className="text-xs text-muted-foreground ml-auto">({s.statusDinamico})</span>
                               </div>
                             </SelectItem>
                           ))}
@@ -1673,7 +1716,13 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setRemanejarData(null)}>Cancelar</Button>
-              <Button onClick={handleConfirmarRemanejamento} disabled={!remanejarData?.novaSala || remanejarData?.novaSala === remanejarData?.aula?.sala} className="gradient-brand border-0">Confirmar Remanejamento</Button>
+              <Button
+                onClick={handleConfirmarRemanejamento}
+                disabled={!remanejarData?.novaSala || remanejarData?.novaSala === remanejarData?.aula?.sala || loadingModal}
+                className="gradient-brand border-0"
+              >
+                Confirmar Remanejamento
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
