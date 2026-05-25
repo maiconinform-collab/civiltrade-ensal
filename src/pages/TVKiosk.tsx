@@ -167,6 +167,8 @@ const TVKiosk = () => {
     ? avisos.map((a) => a.texto).join("   •   ")
     : "Bem-vindo! Acompanhe a programação no painel acima.";
 
+  const isUrgente = marqueeText.toUpperCase().includes("URGENTE") || (avisos as any[]).some(a => a.urgente || a.is_urgente);
+
   // QR code → current TV URL (mobile-friendly)
   const tvUrl = typeof window !== "undefined" ? window.location.origin + "/tv" : "";
 
@@ -404,10 +406,30 @@ const TVKiosk = () => {
       </main>
 
       {/* Marquee */}
-      <div className="bg-primary/95 text-primary-foreground py-2 overflow-hidden relative shrink-0">
-        <div className="flex items-center gap-3 whitespace-nowrap animate-marquee">
+      <style>{`
+        @keyframes marquee-infinite {
+          0% { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
+        .animate-marquee-infinite {
+          animation: marquee-infinite 30s linear infinite;
+        }
+      `}</style>
+      <div 
+        className={`py-2 overflow-hidden relative shrink-0 transition-all duration-300 ${
+          isUrgente 
+            ? "bg-red-600 dark:bg-rose-600 animate-pulse text-white font-bold uppercase" 
+            : "bg-primary/95 text-primary-foreground font-medium"
+        }`}
+      >
+        <div 
+          className="flex whitespace-nowrap animate-marquee-infinite"
+          style={{
+            animationDuration: `${Math.max(10, marqueeText.length * 0.15)}s`
+          }}
+        >
           {Array.from({ length: 2 }).map((_, i) => (
-            <span key={i} className="inline-flex items-center gap-3 text-sm md:text-base font-medium px-6">
+            <span key={i} className="inline-flex items-center gap-3 text-sm md:text-base px-6 whitespace-nowrap">
               <Radio className="w-4 h-4 inline" /> AVISOS &nbsp;•&nbsp; {marqueeText}
             </span>
           ))}
