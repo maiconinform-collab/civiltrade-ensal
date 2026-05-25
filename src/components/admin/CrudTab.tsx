@@ -53,7 +53,8 @@ export function CrudTab({
 
   const load = async () => {
     setLoading(true);
-    const { data, error } = await supabase.from(table).select("*").eq("unidade", unidade).order("created_at", { ascending: false });
+    const unitColumn = table === "salas" ? "unidade_id" : "unidade";
+    const { data, error } = await supabase.from(table).select("*").eq(unitColumn, unidade).order("created_at", { ascending: false });
     if (error) toast.error("Erro ao carregar", { description: error.message });
     setRows(((data as unknown) as AnyRow[]) ?? []);
     setLoading(false);
@@ -83,7 +84,8 @@ export function CrudTab({
       else if (fd.type === "number") payload[fd.key] = Number(v);
       else payload[fd.key] = v;
     });
-    payload.unidade = unidade;
+    const unitColumn = table === "salas" ? "unidade_id" : "unidade";
+    payload[unitColumn] = unidade;
     const tbl = supabase.from(table) as any;
     const { error } = editing
       ? await tbl.update(payload).eq("id", editing.id)

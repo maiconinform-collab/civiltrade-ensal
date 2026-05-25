@@ -392,7 +392,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
   const loadOptions = async () => {
     const [salasRes, horariosRes] = await Promise.all([
-      supabase.from("salas").select("id, nome, bloco, status, capacidade").eq("unidade", unidade).order("nome"),
+      supabase.from("salas").select("id, nome, bloco, status, capacidade").eq("unidade_id", unidade).order("nome"),
       supabase.from("horarios").select("id, turno, hora_inicio, hora_fim").order("turno").order("hora_inicio"),
     ]);
 
@@ -420,14 +420,14 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
         nome: salaNome,
         bloco: salasEsperadasMap.get(salaNome) || null,
         status: "Livre",
-        unidade: unidade
+        unidade_id: unidade
       }));
 
       // Realiza o upsert protetor
-      await supabase.from("salas").upsert(salasParaInserir, { onConflict: "nome, unidade" });
+      await supabase.from("salas").upsert(salasParaInserir, { onConflict: "nome,unidade_id" });
 
       // Busca a lista atualizada com os IDs gerados
-      const { data: recarregadas } = await supabase.from("salas").select("id, nome, bloco, status, capacidade").eq("unidade", unidade).order("nome");
+      const { data: recarregadas } = await supabase.from("salas").select("id, nome, bloco, status, capacidade").eq("unidade_id", unidade).order("nome");
       if (recarregadas) rawSalas = recarregadas as SalaOption[];
     }
 
@@ -492,12 +492,12 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
           nome: salaNome,
           bloco: isAndar11 ? "11º Andar" : (correspondingRow?.bloco || null),
           status: "Livre",
-          unidade: unidade
+          unidade_id: unidade
         };
       });
 
       // Operação estrita de upsert com onConflict para evitar resíduos e duplicatas
-      const { error } = await supabase.from("salas").upsert(salasParaInserir, { onConflict: "nome, unidade" });
+      const { error } = await supabase.from("salas").upsert(salasParaInserir, { onConflict: "nome,unidade_id" });
       if (error) throw error;
 
       toast.success(`${salasParaInserir.length} salas importadas automaticamente com status 'Livre'!`, {
@@ -508,7 +508,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       const { data: newSalas } = await supabase
         .from("salas")
         .select("id, nome, bloco, status, capacidade")
-        .eq("unidade", unidade)
+        .eq("unidade_id", unidade)
         .order("nome");
 
       if (newSalas) {
@@ -536,7 +536,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       const { data, error } = await supabase
         .from("salas")
         .select("*")
-        .eq("unidade", unidade)
+        .eq("unidade_id", unidade)
         .order("nome");
       if (!error && data) {
         setSalasOptions((data as SalaOption[]) ?? []);
@@ -877,7 +877,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   const handleClearRecords = async () => {
     setLoading(true);
     const { error } = await supabase.from("ensalamento").delete().eq("unidade", unidade);
-    const { error: errorSalas } = await supabase.from("salas").delete().eq("unidade", unidade);
+    const { error: errorSalas } = await supabase.from("salas").delete().eq("unidade_id", unidade);
     if (error || errorSalas) {
       toast.error("Erro ao limpar registros", { description: error?.message || errorSalas?.message });
     } else {
@@ -949,42 +949,20 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
   const handleAlterarStatusSala = async (salaNome: string, newStatus: string) => {
     try {
-      // Verifica se esta sala ainda é um fallback sem UUID real no banco.
-      // Isso ocorre quando a sala não foi persistida ainda (ex: 11º Andar recém-exibido).
-      const correspondingSala = currentSalasOptions.find(s => s.nome === salaNome);
-      const isFallback = !correspondingSala || !correspondingSala.id || correspondingSala.id === "";
+      // A) Update via nome+unidade_id
+      const { data, error } = await supabase
+        .from("salas")
+        .update({ status: newStatus })
+        .eq("nome", salaNome)
+        .eq("unidade_id", unidade)
+        .select();
 
-      if (isFallback) {
-        // Sala ainda não existe no banco — faz upsert primeiro para criar o registro
-        const { error: upsertError } = await supabase
-          .from("salas")
-          .upsert(
-            [{
-              nome: salaNome,
-              status: newStatus,
-              unidade,
-              bloco: correspondingSala?.bloco || null,
-              capacidade: correspondingSala?.capacidade || null
-            }],
-            { onConflict: "nome,unidade" }
-          );
-        if (upsertError) throw upsertError;
-      } else {
-        // A) Update via nome+unidade (chave única e confiável, sem risco de UUID inválido)
-        const { data: updatedData, error: salaError } = await supabase
-          .from("salas")
-          .update({ status: newStatus })
-          .eq("nome", salaNome)
-          .eq("unidade", unidade)
-          .select();
+      if (error) throw error;
 
-        if (salaError) throw salaError;
-
-        // Tratamento de Falha Silenciosa (0 linhas afetadas)
-        if (!updatedData || updatedData.length === 0) {
-          toast.error(`Falha: Nenhuma sala encontrada com nome "${salaNome}" na unidade. Tente recarregar a página.`);
-          return;
-        }
+      // Tratamento de Falha Silenciosa (0 linhas afetadas)
+      if (!data || data.length === 0) {
+        toast.error(`Falha: Nenhuma sala encontrada com nome "${salaNome}" na unidade. Tente recarregar a página.`);
+        return;
       }
 
       // Desvincula turmas se status for de interdição
@@ -1001,7 +979,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       const { data: freshSalas, error: fetchError } = await supabase
         .from("salas")
         .select("id, nome, bloco, status, capacidade")
-        .eq("unidade", unidade)
+        .eq("unidade_id", unidade)
         .order("nome");
       if (fetchError) throw fetchError;
 
