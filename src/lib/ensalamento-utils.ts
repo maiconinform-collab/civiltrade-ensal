@@ -32,13 +32,13 @@ export type Status = "now" | "next" | "scheduled" | "done";
 export const statusFor = (h: string, now: Date, singleTimeDurationMinutes = 60): Status => {
   const p = parseHorario(h, singleTimeDurationMinutes);
   if (!p) return "scheduled";
-  
+
   // Força o cálculo baseado no fuso de Brasília, ignorando a configuração local do dispositivo
   const options = { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false } as const;
   const spTimeStr = now.toLocaleTimeString('pt-BR', options);
   const [hStr, mStr] = spTimeStr.split(':');
   const minutes = parseInt(hStr, 10) * 60 + parseInt(mStr, 10);
-  
+
   if (minutes >= p.start && minutes < p.end) return "now";
   if (minutes < p.start) return p.start - minutes <= 60 ? "next" : "scheduled";
   return "done";
@@ -135,7 +135,7 @@ export const getCurrentTurno = (date: Date = new Date()): string => {
   const options = { timeZone: 'America/Sao_Paulo', hour: '2-digit', hour12: false } as const;
   const spHourStr = date.toLocaleTimeString('pt-BR', options).split(':')[0];
   const currentHour = parseInt(spHourStr, 10);
-  
+
   if (currentHour < 12) return "manha";
   if (currentHour < 18) return "tarde";
   return "noite";

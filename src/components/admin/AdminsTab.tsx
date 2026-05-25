@@ -42,7 +42,8 @@ const AdminsTab = ({ currentUserId }: { currentUserId: string | null }) => {
     setLoading(true);
     const { data, error } = await supabase.functions.invoke("admin-list-users");
     if (error) toast.error("Erro ao listar", { description: error.message });
-    setUsers((data as any)?.users ?? []);
+    const responseData = data as { users?: AdminUser[] } | null;
+    setUsers(responseData?.users ?? []);
     setLoading(false);
   };
 
@@ -56,8 +57,9 @@ const AdminsTab = ({ currentUserId }: { currentUserId: string | null }) => {
       body: { email, password, role, unidade },
     });
     setSaving(false);
-    if (error || (data as any)?.error) {
-      toast.error("Erro ao criar", { description: (data as any)?.error ?? error?.message });
+    const responseData = data as { error?: string } | null;
+    if (error || responseData?.error) {
+      toast.error("Erro ao criar", { description: responseData?.error ?? error?.message });
       return;
     }
     toast.success("Administrador criado");
@@ -69,8 +71,9 @@ const AdminsTab = ({ currentUserId }: { currentUserId: string | null }) => {
     const { data, error } = await supabase.functions.invoke("admin-delete-user", {
       body: { user_id: deleteId },
     });
-    if (error || (data as any)?.error) {
-      toast.error("Erro ao remover", { description: (data as any)?.error ?? error?.message });
+    const responseData = data as { error?: string } | null;
+    if (error || responseData?.error) {
+      toast.error("Erro ao remover", { description: responseData?.error ?? error?.message });
       return;
     }
     toast.success("Removido");
@@ -157,7 +160,7 @@ const AdminsTab = ({ currentUserId }: { currentUserId: string | null }) => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Papel</Label>
-                <Select value={role} onValueChange={(v) => setRole(v as any)}>
+                <Select value={role} onValueChange={(v: "admin" | "super_admin") => setRole(v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Admin</SelectItem>
@@ -167,7 +170,7 @@ const AdminsTab = ({ currentUserId }: { currentUserId: string | null }) => {
               </div>
               <div className="space-y-2">
                 <Label>Unidade</Label>
-                <Select value={unidade} onValueChange={(v) => setUnidade(v as any)}>
+                <Select value={unidade} onValueChange={(v: "trade" | "patamares") => setUnidade(v)}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="trade">Civil Trade</SelectItem>
