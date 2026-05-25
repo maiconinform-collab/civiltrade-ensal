@@ -110,13 +110,13 @@ function SortableRow({ id, children, className }: { id: string, children: React.
   );
 }
 
-function DroppableRoomBlock({ 
-  room, 
-  nextUse, 
-  onStatusChange 
-}: { 
-  room: SalaOption; 
-  nextUse?: string; 
+function DroppableRoomBlock({
+  room,
+  nextUse,
+  onStatusChange
+}: {
+  room: SalaOption;
+  nextUse?: string;
   onStatusChange?: (id: string, name: string, status: string) => void;
 }) {
   const { isOver, setNodeRef } = useDroppable({
@@ -140,9 +140,8 @@ function DroppableRoomBlock({
   return (
     <div
       ref={setNodeRef}
-      className={`p-4 border rounded-xl shadow-sm flex flex-col justify-between bg-card transition-all duration-300 min-w-[150px] h-[135px] ${
-        isOver ? "border-primary scale-105 shadow-glow" : colors
-      } ${statusDinamico !== "Livre" ? "opacity-80" : "cursor-pointer"}`}
+      className={`p-4 border rounded-xl shadow-sm flex flex-col justify-between bg-card transition-all duration-300 min-w-[150px] h-[135px] ${isOver ? "border-primary scale-105 shadow-glow" : colors
+        } ${statusDinamico !== "Livre" ? "opacity-80" : "cursor-pointer"}`}
     >
       <div className="flex items-start justify-between">
         <div className="flex flex-col leading-tight">
@@ -160,7 +159,7 @@ function DroppableRoomBlock({
       </div>
 
       <div className="w-full flex flex-col gap-1.5 mt-2" onClick={(e) => e.stopPropagation()}>
-        <Select 
+        <Select
           value={statusDinamico}
           onValueChange={(val) => {
             if (onStatusChange) onStatusChange(room.id, room.nome, val);
@@ -193,11 +192,10 @@ function DroppableMaintenanceZone() {
   return (
     <div
       ref={setNodeRef}
-      className={`p-4 rounded-xl border-2 border-dashed transition-all duration-300 flex flex-col items-center justify-center min-w-[140px] h-[85px] cursor-pointer ${
-        isOver
-          ? "border-purple-500 bg-purple-500/20 scale-105 shadow-glow"
-          : "border-purple-500/30 bg-purple-500/5 hover:border-purple-500 hover:bg-purple-500/10"
-      }`}
+      className={`p-4 rounded-xl border-2 border-dashed transition-all duration-300 flex flex-col items-center justify-center min-w-[140px] h-[85px] cursor-pointer ${isOver
+        ? "border-purple-500 bg-purple-500/20 scale-105 shadow-glow"
+        : "border-purple-500/30 bg-purple-500/5 hover:border-purple-500 hover:bg-purple-500/10"
+        }`}
     >
       <span className="text-[10px] text-purple-600 font-semibold uppercase tracking-wider">Interditar</span>
       <span className="text-xs font-bold text-purple-700 dark:text-purple-400">🔧 Em Manutenção</span>
@@ -305,10 +303,10 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
     const isOcupada = rows.some((row) => {
       if (row.sala !== salaNome) return false;
       if (row.turno !== turno) return false;
-      
+
       // Modelo atômico:
       if (row.disciplina && row.data === dateISO) return true;
-      
+
       // Fallback legado:
       if (!row.disciplina && dateISO === defaultTodayISO) {
         const conteudoHoje = (row as any)[todayDayKey || ""];
@@ -329,6 +327,22 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       return true;
     });
   }, [salasOptions]);
+
+  const fallbackSalasOptions: SalaOption[] = useMemo(() => {
+    const andaresBase = {
+      "7º Andar": ["703", "704", "705", "706"],
+      "8º Andar": ["801", "802", "803", "805", "806"],
+      "9º Andar": ["901", "902", "903", "906", "907"],
+      "11º Andar (PND)": ["1101", "1102", "1103", "1104"]
+    };
+    const fallback: SalaOption[] = [];
+    Object.entries(andaresBase).forEach(([bloco, salas]) => {
+      salas.forEach(nome => fallback.push({ id: `fb-${nome}`, nome, bloco, status: "Livre" }));
+    });
+    return fallback;
+  }, []);
+
+  const currentSalasOptions = uniqueSalasOptions.length > 0 ? uniqueSalasOptions : fallbackSalasOptions;
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -374,32 +388,32 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
     // VERIFICAÇÃO E INJEÇÃO AUTOMÁTICA DE SALAS BASE
     // Garante que a infraestrutura completa esteja sempre disponível e nunca seja perdida.
-    const salasEsperadas: string[] = [];
-    
-    if (unidade === 'trade') {
-      // Salas originais dos andares 7, 8 e 9
-      salasEsperadas.push("703", "704", "705", "706", "801", "802", "803", "805", "806", "901", "902", "903", "906", "907");
-      // Salas do 11º andar exclusivas do Civil Trade
-      salasEsperadas.push("1101", "1102", "1103", "1104");
-    }
+    const andaresBase = {
+      "7º Andar": ["703", "704", "705", "706"],
+      "8º Andar": ["801", "802", "803", "805", "806"],
+      "9º Andar": ["901", "902", "903", "906", "907"],
+      "11º Andar (PND)": ["1101", "1102", "1103", "1104"]
+    };
+
+    const salasEsperadasMap = new Map<string, string>();
+    Object.entries(andaresBase).forEach(([bloco, salas]) => {
+      salas.forEach(sala => salasEsperadasMap.set(sala, bloco));
+    });
 
     const nomesExistentes = new Set(rawSalas.map(s => s.nome));
-    const salasFaltantes = salasEsperadas.filter(sala => !nomesExistentes.has(sala));
+    const salasFaltantes = Array.from(salasEsperadasMap.keys()).filter(sala => !nomesExistentes.has(sala));
 
     if (salasFaltantes.length > 0) {
-      const salasParaInserir = salasFaltantes.map(salaNome => {
-        const isAndar11 = ["1101", "1102", "1103", "1104"].includes(salaNome);
-        return {
-          nome: salaNome,
-          bloco: isAndar11 ? "11º Andar" : null, // 11º andar ganha bloco específico
-          status: "Livre",
-          unidade: unidade
-        };
-      });
+      const salasParaInserir = salasFaltantes.map(salaNome => ({
+        nome: salaNome,
+        bloco: salasEsperadasMap.get(salaNome) || null,
+        status: "Livre",
+        unidade: unidade
+      }));
 
       // Realiza o upsert protetor
       await supabase.from("salas").upsert(salasParaInserir, { onConflict: "nome, unidade" });
-      
+
       // Busca a lista atualizada com os IDs gerados
       const { data: recarregadas } = await supabase.from("salas").select("id, nome, bloco, status, capacidade").eq("unidade", unidade).order("nome");
       if (recarregadas) rawSalas = recarregadas as SalaOption[];
@@ -429,7 +443,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       .gte("data", todayISO)
       .order("data")
       .order("horario");
-      
+
     if (data) {
       const uses: Record<string, string> = {};
       data.forEach(r => {
@@ -484,7 +498,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
         .select("id, nome, bloco, status, capacidade")
         .eq("unidade", unidade)
         .order("nome");
-        
+
       if (newSalas) {
         // Aplica o filtro de unicidade antes do set (segurança extra)
         const uniqueMap = new Map<string, SalaOption>();
@@ -675,11 +689,11 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   const openEdit = (r: Ensalamento) => {
     setEditing(r);
     setForm({
-      sala: r.sala, 
-      bloco: r.bloco ?? "", 
-      turno: r.turno, 
+      sala: r.sala,
+      bloco: r.bloco ?? "",
+      turno: r.turno,
       horario: r.horario,
-      professor: r.professor ?? "", 
+      professor: r.professor ?? "",
       data: r.data ?? "",
       disciplina: r.disciplina ?? "",
     });
@@ -701,14 +715,14 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
         if (editing && r.id === editing.id) return false; // Ignora o próprio registro
         if (r.sala !== form.sala) return false;
         if (r.turno !== form.turno && r.horario !== form.horario) return false;
-        
+
         // Se ambos são do modelo atômico, compara a data. 
         // Se form.data for vazio, é aula recorrente (legado). Aulas recorrentes chocam no mesmo turno/horário.
         if (form.data && r.data) {
           if (r.data === form.data) return true;
           return false;
         }
-        
+
         return true; // Se um deles é recorrente, assume conflito direto
       });
 
@@ -800,7 +814,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
           return;
         }
       }
-      
+
       const bloco = targetSala?.bloco || null;
 
       setLoading(true);
@@ -967,7 +981,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
       if (filterOnlyFreeSalas) {
         const correspondingSala = uniqueSalasOptions.find((s) => s.nome === r.sala);
-        const statusDinamico = correspondingSala 
+        const statusDinamico = correspondingSala
           ? getSalaStatusDinamico(correspondingSala.nome, correspondingSala.bloco, correspondingSala.status)
           : "Livre";
         if (statusDinamico !== "Livre") return false;
@@ -989,7 +1003,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       return;
     }
     setSalaCustom(false);
-    const sala = uniqueSalasOptions.find((s) => s.nome === value);
+    const sala = currentSalasOptions.find((s) => s.nome === value);
     if (sala) setForm({ ...form, sala: sala.nome, bloco: sala.bloco ?? "" });
   };
 
@@ -1027,9 +1041,8 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
-                  className={`w-[180px] justify-start text-left font-normal ${
-                    selectedViewDate ? "border-primary text-primary" : "text-muted-foreground"
-                  }`}
+                  className={`w-[180px] justify-start text-left font-normal ${selectedViewDate ? "border-primary text-primary" : "text-muted-foreground"
+                    }`}
                 >
                   <CalendarIcon className="mr-2 h-4 w-4" />
                   {selectedViewDate
@@ -1171,15 +1184,15 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
         {/* PAINEL DE REMANEJAMENTO RÁPIDO (DND) */}
         {showDndPanel && (
-          <div className="glass-card p-6 border-amber-500/30 bg-amber-500/5 rounded-2xl animate-fade-in space-y-4">
+          <div className="glass-card p-6 border-amber-500/30 bg-amber-500/5 rounded-2xl animate-fade-in space-y-4 mb-4">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold text-amber-800 dark:text-amber-400 flex items-center gap-2">
                   <ArrowRightLeft className="w-5 h-5 animate-pulse" />
-                  Zonas de Remanejamento Rápido (Drag & Drop)
+                  Painel de Ferramentas DnD (Remanejamento e Status)
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Arraste uma turma da tabela (pelo ícone de ordenação <GripVertical className="inline w-3.5 h-3.5" />) e solte-a em uma das salas livres abaixo para remanejar instantaneamente.
+                  Arraste uma turma da tabela (pelo ícone de ordenação <GripVertical className="inline w-3.5 h-3.5" />) e solte-a no painel visual abaixo para remanejar instantaneamente.
                 </p>
               </div>
               <Button
@@ -1201,49 +1214,55 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
               <DraggableStatusCard status="Alagamento" />
             </div>
 
-            <div className="flex flex-col gap-8">
-              {andaresUnicos.map(andar => {
-                const salasDoAndar = uniqueSalasOptions
-                  .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status) }))
-                  .filter(s => getAndarNumero(s.nome) === andar);
-                
-                if (salasDoAndar.length === 0) return null;
-
-                return (
-                  <div key={andar} className="space-y-3">
-                    <div className="flex items-center gap-4 border-b border-border/50 pb-2">
-                      <h4 className="text-lg font-bold text-foreground">
-                        {andar}º Andar
-                      </h4>
-                      <span className="text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">
-                        {salasDoAndar.length} Salas
-                      </span>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 gap-4">
-                      {salasDoAndar.map(room => (
-                        <DroppableRoomBlock 
-                          key={room.id} 
-                          room={{ ...room, status: room.statusDinamico }} 
-                          nextUse={nextUses[room.nome]}
-                          onStatusChange={handleAlterarStatusSala}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-              {uniqueSalasOptions.length === 0 && (
-                <p className="text-sm text-muted-foreground py-4">Nenhuma sala disponível. Tente importar os dados.</p>
-              )}
-            </div>
-
             {/* ZONA DE INTERDIÇÃO - Opcional, mantida para Drag & Drop */}
-            <div className="mt-6 border-t pt-4 flex flex-col items-start gap-3">
+            <div className="mt-2 flex flex-col items-start gap-3">
               <span className="text-xs text-muted-foreground font-semibold">Mandar Turma para Manutenção:</span>
               <DroppableMaintenanceZone />
             </div>
           </div>
         )}
+
+        {/* PAINEL VISUAL DE STATUS DAS SALAS (GRID) */}
+        <div className="glass-card p-6 rounded-2xl space-y-4">
+          <h3 className="text-lg font-bold text-foreground flex items-center gap-2 mb-4">
+            🏠 Visão Geral das Salas
+          </h3>
+          <div className="flex flex-col gap-8">
+            {andaresUnicos.map(andar => {
+              const salasDoAndar = currentSalasOptions
+                .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status) }))
+                .filter(s => getAndarNumero(s.nome) === andar);
+
+              if (salasDoAndar.length === 0) return null;
+
+              return (
+                <div key={andar} className="space-y-3">
+                  <div className="flex items-center gap-4 border-b border-border/50 pb-2">
+                    <h4 className="text-lg font-bold text-foreground">
+                      {andar}º Andar
+                    </h4>
+                    <span className="text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">
+                      {salasDoAndar.length} Salas
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 gap-4">
+                    {salasDoAndar.map(room => (
+                      <DroppableRoomBlock
+                        key={room.id}
+                        room={{ ...room, status: room.statusDinamico }}
+                        nextUse={nextUses[room.nome]}
+                        onStatusChange={handleAlterarStatusSala}
+                      />
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+            {currentSalasOptions.length === 0 && (
+              <p className="text-sm text-muted-foreground py-4">Nenhuma sala disponível. Tente importar os dados.</p>
+            )}
+          </div>
+        </div>
 
         {/* --- TABELA DE AULAS --- */}
         <div className="glass-card overflow-hidden">
@@ -1304,8 +1323,8 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                             {/* Data formatada */}
                             {r.data
                               ? <span className="text-xs font-mono bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                                  {format(new Date(r.data + 'T12:00:00'), 'dd/MM', { locale: ptBR })}
-                                </span>
+                                {format(new Date(r.data + 'T12:00:00'), 'dd/MM', { locale: ptBR })}
+                              </span>
                               : <span className="text-[10px] text-muted-foreground">Recorrente</span>}
                           </TableCell>
                           <TableCell className="font-semibold">{r.sala}</TableCell>
@@ -1375,9 +1394,8 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className={`w-full justify-start text-left font-normal h-10 ${
-                          form.data ? "border-primary text-foreground" : "text-muted-foreground"
-                        }`}
+                        className={`w-full justify-start text-left font-normal h-10 ${form.data ? "border-primary text-foreground" : "text-muted-foreground"
+                          }`}
                       >
                         <CalendarIcon className="mr-2 h-4 w-4 shrink-0" />
                         <span className="truncate text-sm">
@@ -1468,17 +1486,18 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                         role="combobox"
                         aria-expanded={salaComboboxOpen}
                         className="w-full justify-between h-10 text-sm font-normal"
+                        disabled={loading && currentSalasOptions.length === 0}
                       >
-                        {form.sala
-                          ? uniqueSalasOptions.find((s) => s.nome === form.sala)?.nome || form.sala
-                          : "Selecionar sala..."}
+                        {loading && currentSalasOptions.length === 0 ? "Carregando..." : (form.sala
+                          ? currentSalasOptions.find((s) => s.nome === form.sala)?.nome || form.sala
+                          : "Selecionar sala...")}
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
                     <PopoverContent className="w-[200px] p-0" align="start">
                       <Command
                         filter={(value, search) => {
-                          const sala = uniqueSalasOptions.find(s => s.nome.toLowerCase() === value.toLowerCase());
+                          const sala = currentSalasOptions.find(s => s.nome.toLowerCase() === value.toLowerCase());
                           if (!sala) return 0;
                           const combined = `${sala.nome} ${sala.bloco || ""}`.toLowerCase();
                           if (combined.includes(search.toLowerCase())) return 1;
@@ -1489,7 +1508,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                         <CommandList>
                           <CommandEmpty>Nenhuma sala encontrada.</CommandEmpty>
                           <CommandGroup>
-                            {uniqueSalasOptions.map((s) => (
+                            {currentSalasOptions.map((s) => (
                               <CommandItem
                                 key={s.id}
                                 value={s.nome}
@@ -1561,8 +1580,8 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
             <DialogHeader><DialogTitle>Remanejar Turma</DialogTitle></DialogHeader>
             {loading || !remanejarData || !remanejarData.aula ? (
               <div className="py-8 flex flex-col items-center justify-center">
-                 <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
-                 <p className="mt-4 text-sm text-muted-foreground">Carregando dados da sala...</p>
+                <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                <p className="mt-4 text-sm text-muted-foreground">Carregando dados da sala...</p>
               </div>
             ) : (
               <div className="space-y-4 py-2">
@@ -1626,11 +1645,11 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                         {(uniqueSalasOptions || [])
                           .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData?.aula?.data || undefined, remanejarData?.aula?.turno) }))
                           .filter(s => s.statusDinamico === 'Livre').length === 0 && (
-                          <div className="px-8 py-2 text-sm text-muted-foreground">Nenhuma sala livre no momento</div>
-                        )}
-                        
+                            <div className="px-8 py-2 text-sm text-muted-foreground">Nenhuma sala livre no momento</div>
+                          )}
+
                         <SelectSeparator />
-                        
+
                         {/* GRUPO 2: Salas Inativas / Ocupadas (Rótulo cinza/vermelho/roxo) */}
                         <SelectLabel className="text-muted-foreground font-bold mt-2">Salas Inativas / Ocupadas (Bloqueadas)</SelectLabel>
                         {(uniqueSalasOptions || [])
@@ -1638,9 +1657,8 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                           .filter(s => s.statusDinamico !== 'Livre').map(s => (
                             <SelectItem key={s.id} value={s.nome} disabled className="opacity-60">
                               <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${
-                                  s.statusDinamico === 'Ocupada' ? 'bg-red-500' : 'bg-purple-500'
-                                }`}></div>
+                                <div className={`w-2 h-2 rounded-full ${s.statusDinamico === 'Ocupada' ? 'bg-red-500' : 'bg-purple-500'
+                                  }`}></div>
                                 <span className="line-through">Sala {s.nome} {s.bloco ? `(Bloco ${s.bloco})` : ""}</span>
                                 <span className="text-xs ml-auto">({s.statusDinamico})</span>
                               </div>

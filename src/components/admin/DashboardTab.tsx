@@ -27,7 +27,7 @@ const DashboardTab = ({ unidade }: { unidade: string }) => {
   useEffect(() => {
     // Reset de Dados: limpa imediatamente os contadores
     setS({ aulas: 0, professores: 0, disciplinas: 0, salas: 0, horarios: 0, media_ratings: 0, total_ratings: 0, low_ratings: 0 });
-    
+
     const load = async () => {
       const [a, p, d, saRes, h, rt] = await Promise.all([
         supabase.from("ensalamento").select("id", { count: "exact", head: true }).eq("unidade", unidade),
@@ -37,11 +37,11 @@ const DashboardTab = ({ unidade }: { unidade: string }) => {
         supabase.from("horarios").select("id", { count: "exact", head: true }).eq("unidade", unidade),
         supabase.from("ratings").select("rating").eq("unidade", unidade)
       ]);
-      
+
       let media = 0;
       let low = 0;
       const ratings = rt.data || [];
-      
+
       // Contagem distinta (anti-duplicatas) baseada no nome
       const rawSalas = saRes.data || [];
       const distinctSalas = new Set(rawSalas.map(s => s.nome)).size;
@@ -73,7 +73,7 @@ const DashboardTab = ({ unidade }: { unidade: string }) => {
         <Card icon={Clock} label="Horários" value={s.horarios} />
         <Card icon={Star} label={`Avaliações (${s.total_ratings})`} value={s.media_ratings.toFixed(1)} />
       </div>
-      
+
       {s.low_ratings > 3 && (
         <div className="glass-card border-destructive/40 bg-destructive/10 px-4 py-4 flex items-center gap-3">
           <AlertTriangle className="w-6 h-6 text-destructive flex-shrink-0" />
