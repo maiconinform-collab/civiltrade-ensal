@@ -355,8 +355,42 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       supabase.from("horarios").select("id, turno, hora_inicio, hora_fim").order("turno").order("hora_inicio"),
     ]);
 
+    let rawSalas = (salasRes.data as SalaOption[]) || [];
+
+    // VERIFICAÇÃO E INJEÇÃO AUTOMÁTICA DE SALAS BASE
+    // Garante que a infraestrutura completa esteja sempre disponível e nunca seja perdida.
+    const salasEsperadas: string[] = [];
+    
+    if (unidade === 'trade') {
+      // Salas originais dos andares 7, 8 e 9
+      salasEsperadas.push("703", "704", "705", "706", "801", "802", "803", "805", "806", "901", "902", "903", "906", "907");
+      // Salas do 11º andar exclusivas do Civil Trade
+      salasEsperadas.push("1101", "1102", "1103", "1104");
+    }
+
+    const nomesExistentes = new Set(rawSalas.map(s => s.nome));
+    const salasFaltantes = salasEsperadas.filter(sala => !nomesExistentes.has(sala));
+
+    if (salasFaltantes.length > 0) {
+      const salasParaInserir = salasFaltantes.map(salaNome => {
+        const isAndar11 = ["1101", "1102", "1103", "1104"].includes(salaNome);
+        return {
+          nome: salaNome,
+          bloco: isAndar11 ? "11º Andar" : null, // 11º andar ganha bloco específico
+          status: "Livre",
+          unidade: unidade
+        };
+      });
+
+      // Realiza o upsert protetor
+      await supabase.from("salas").upsert(salasParaInserir, { onConflict: "nome, unidade" });
+      
+      // Busca a lista atualizada com os IDs gerados
+      const { data: recarregadas } = await supabase.from("salas").select("id, nome, bloco, status").eq("unidade", unidade).order("nome");
+      if (recarregadas) rawSalas = recarregadas as SalaOption[];
+    }
+
     // Filtragem de duplicatas na interface (Fallback de Segurança)
-    const rawSalas = (salasRes.data as SalaOption[]) || [];
     const uniqueMap = new Map<string, SalaOption>();
     rawSalas.forEach(s => {
       if (!uniqueMap.has(s.nome)) uniqueMap.set(s.nome, s);
@@ -400,19 +434,13 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   // Refetch automático quando a data de visualização muda
   useEffect(() => { load(selectedViewDate); }, [selectedViewDate]); // eslint-disable-line
 
-  // Sincroniza salas da tabela de ensalamento para a tabela de salas caso esta esteja vazia
+  // Sincroniza salas da tabela de ensalamento para a tabela de salas caso esta esteja vazia (importação de planilha etc)
   const syncSalasFromEnsalamento = async (currentSalas: SalaOption[], currentRows: Ensalamento[]) => {
     if (isSyncing.current || currentSalas.length > 0 || currentRows.length === 0) return;
     isSyncing.current = true;
 
-    // Inclusão das salas do 11º andar obrigatórias SOMENTE para patamares
-    if (unidade === 'patamares') {
-      const baseRooms11 = ["1101", "1102", "1103", "1104"];
-      baseRooms11.forEach(sala => {
-        if (!uniqueRooms.includes(sala)) uniqueRooms.push(sala);
-      });
-    }
-
+    // Filtra salas únicas das aulas
+    const uniqueRooms = Array.from(new Set(currentRows.map(r => r.sala).filter(Boolean)));
     if (uniqueRooms.length === 0) return;
 
     try {
@@ -911,9 +939,9 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   };
 
   // --- FILTROS E PESQUISA ---
-  // Calcula andares e blocos únicos para preencher os selects de filtro
-  const andaresUnicos = useMemo(() => Array.from(new Set(rows.map(r => getAndarNumero(r.sala)).filter(Boolean))).sort((a, b) => a! - b!), [rows]);
-  const blocosUnicos = useMemo(() => Array.from(new Set(rows.map(r => r.bloco).filter(Boolean))).sort(), [rows]);
+  // Calcula andares e blocos únicos com base em todas as salas que existem no banco, não apenas as que tem aula
+  const andaresUnicos = useMemo(() => Array.from(new Set(uniqueSalasOptions.map(s => getAndarNumero(s.nome)).filter(Boolean))).sort((a, b) => a! - b!), [uniqueSalasOptions]);
+  const blocosUnicos = useMemo(() => Array.from(new Set(uniqueSalasOptions.map(s => s.bloco).filter(Boolean))).sort(), [uniqueSalasOptions]);
 
   const filtered = useMemo(() => {
     const q = normalizeSearch(search);
