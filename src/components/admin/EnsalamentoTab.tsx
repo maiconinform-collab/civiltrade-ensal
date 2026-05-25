@@ -242,7 +242,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   // --- VARIÁVEIS CRÍTICAS E ESTADOS ---
   const [rows, setRows] = useState<Ensalamento[]>([]); // Linhas da tabela
   const [filterOnlyFreeSalas, setFilterOnlyFreeSalas] = useState(false);
-  const [showDndPanel, setShowDndPanel] = useState(false);
+  const [showDndPanel, setShowDndPanel] = useState(true); // Sempre visível por padrão (único painel de salas)
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [andarFilter, setAndarFilter] = useState("todos");
@@ -281,7 +281,10 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   const isSyncing = useRef(false);
 
   const getSalaStatusDinamico = (salaNome: string, blocoSala: string | null, statusBase: string | null, targetDateISO?: string, targetTurno?: string): string => {
-    if (statusBase && statusBase !== "Livre" && statusBase !== "Ocupada") {
+    // Retorna diretamente qualquer status explícito que NÃO seja "Livre".
+    // Isso garante que "Manutenção", "Defeito Ar", "Alagamento" E "Ocupada"
+    // definidos manualmente no banco (ou via update otimístico) sejam respeitados.
+    if (statusBase && statusBase !== "Livre") {
       return statusBase;
     }
 
@@ -981,11 +984,9 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
         });
       }
     } catch (err: any) {
-      // Reverte o estado otimista em caso de erro
-      setSalasOptions(prev =>
-        prev.map(s => s.nome === salaNome ? { ...s, status: s.status } : s)
-      );
-      loadOptions(); // Re-sincroniza com o banco para garantir estado correto
+      // Reverte o estado otimista re-buscando do banco (a mutação local já alterou o valor,
+      // então `s.status` já é o novo — a única forma confiável de reverter é buscar do servidor).
+      await loadOptions();
       toast.error("Erro ao alterar status da sala", { description: err.message });
     }
   };
@@ -1302,47 +1303,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
           </div>
         )}
 
-        {/* PAINEL VISUAL DE STATUS DAS SALAS (GRID) */}
-        <div className="glass-card p-6 rounded-2xl space-y-4">
-          <h3 className="text-lg font-bold text-foreground flex items-center gap-2 mb-4">
-            🏠 Visão Geral das Salas
-          </h3>
-          <div className="flex flex-col gap-8">
-            {andaresUnicos.map(andar => {
-              const salasDoAndar = currentSalasOptions
-                .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status) }))
-                .filter(s => getAndarNumero(s.nome) === andar);
-
-              if (salasDoAndar.length === 0) return null;
-
-              return (
-                <div key={andar} className="space-y-3">
-                  <div className="flex items-center gap-4 border-b border-border/50 pb-2">
-                    <h4 className="text-lg font-bold text-foreground">
-                      {andar}º Andar
-                    </h4>
-                    <span className="text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">
-                      {salasDoAndar.length} Salas
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 gap-4">
-                    {salasDoAndar.map(room => (
-                      <DroppableRoomBlock
-                        key={room.id}
-                        room={{ ...room, status: room.statusDinamico }}
-                        nextUse={nextUses[room.nome]}
-                        onStatusChange={handleAlterarStatusSala}
-                      />
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
-            {currentSalasOptions.length === 0 && (
-              <p className="text-sm text-muted-foreground py-4">Nenhuma sala disponível. Tente importar os dados.</p>
-            )}
-          </div>
-        </div>
+        {/* SEÇÃO 'Visão Geral das Salas' REMOVIDA — o Painel DnD acima agora é a única central de gestão visual */}
 
         {/* --- TABELA DE AULAS --- */}
         <div className="glass-card overflow-hidden">
