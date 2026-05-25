@@ -117,7 +117,7 @@ function DroppableRoomBlock({
 }: {
   room: SalaOption;
   nextUse?: string;
-  onStatusChange?: (id: string, name: string, status: string) => void;
+  onStatusChange?: (name: string, status: string) => void;
 }) {
   const { isOver, setNodeRef } = useDroppable({
     id: `room-${room.nome}`,
@@ -162,7 +162,7 @@ function DroppableRoomBlock({
         <Select
           value={statusDinamico}
           onValueChange={(val) => {
-            if (onStatusChange) onStatusChange(room.id, room.nome, val);
+            if (onStatusChange) onStatusChange(room.nome, val);
           }}
         >
           <SelectTrigger className={`h-7 text-xs ${statusDinamico === 'Livre' ? 'text-green-700 bg-green-500/10 border-green-500/20' : ''} ${statusDinamico === 'Manutenção' ? 'text-purple-700 bg-purple-500/10 border-purple-500/20' : ''} ${statusDinamico === 'Ocupada' ? 'text-red-700 bg-red-500/10 border-red-500/20' : ''}`}>
@@ -785,7 +785,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
         const roomName = overId.replace("room-", "");
         const targetSala = currentSalasOptions.find(s => s.nome === roomName);
         if (targetSala) {
-          await handleAlterarStatusSala(targetSala.id, targetSala.nome, newStatus);
+          await handleAlterarStatusSala(targetSala.nome, newStatus);
         }
       }
       return;
@@ -806,7 +806,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
         return;
       }
 
-      await handleAlterarStatusSala(correspondingSala.id, correspondingSala.nome, "Manutenção");
+      await handleAlterarStatusSala(correspondingSala.nome, "Manutenção");
       return;
     }
 
@@ -947,19 +947,26 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
     }
   };
 
-  const handleAlterarStatusSala = async (salaId: string, salaNome: string, newStatus: string) => {
+  const handleAlterarStatusSala = async (salaNome: string, newStatus: string) => {
     try {
       // Verifica se esta sala ainda é um fallback sem UUID real no banco.
       // Isso ocorre quando a sala não foi persistida ainda (ex: 11º Andar recém-exibido).
-      const isFallback = !salaId || salaId === "";
+      const correspondingSala = currentSalasOptions.find(s => s.nome === salaNome);
+      const isFallback = !correspondingSala || !correspondingSala.id || correspondingSala.id === "";
 
       if (isFallback) {
         // Sala ainda não existe no banco — faz upsert primeiro para criar o registro
         const { error: upsertError } = await supabase
           .from("salas")
           .upsert(
-            [{ nome: salaNome, status: newStatus, unidade, bloco: currentSalasOptions.find(s => s.nome === salaNome)?.bloco || null }],
-            { onConflict: "nome, unidade" }
+            [{
+              nome: salaNome,
+              status: newStatus,
+              unidade,
+              bloco: correspondingSala?.bloco || null,
+              capacidade: correspondingSala?.capacidade || null
+            }],
+            { onConflict: "nome,unidade" }
           );
         if (upsertError) throw upsertError;
       } else {
@@ -1314,14 +1321,14 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                                 <button
                                   title="Colocar em Manutenção"
                                   className="flex-1 text-[9px] font-semibold py-1 px-1.5 rounded-lg bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 hover:border-purple-500 transition-all active:scale-95"
-                                  onClick={() => handleAlterarStatusSala(room.id, room.nome, 'Manutenção')}
+                                  onClick={() => handleAlterarStatusSala(room.nome, 'Manutenção')}
                                 >
                                   🔧 Manutenção
                                 </button>
                                 <button
                                   title="Liberar Sala"
                                   className="flex-1 text-[9px] font-semibold py-1 px-1.5 rounded-lg bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/30 hover:bg-green-500/20 hover:border-green-500 transition-all active:scale-95"
-                                  onClick={() => handleAlterarStatusSala(room.id, room.nome, 'Livre')}
+                                  onClick={() => handleAlterarStatusSala(room.nome, 'Livre')}
                                 >
                                   🟢 Liberar
                                 </button>
@@ -1685,7 +1692,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                           onValueChange={async (newStatus) => {
                             const targetSala = (currentSalasOptions || fallbackSalasOptions).find(s => s.nome === remanejarData.aula.sala);
                             if (targetSala) {
-                              await handleAlterarStatusSala(targetSala.id, targetSala.nome, newStatus);
+                              await handleAlterarStatusSala(targetSala.nome, newStatus);
                             }
                           }}
                         >
