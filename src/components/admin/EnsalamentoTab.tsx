@@ -241,8 +241,9 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [now, setNow] = useState(new Date());
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
-  // Date picker de visualização (filtro da tabela)
+  // Filtros Globais da Tabela e DnD
   const [selectedViewDate, setSelectedViewDate] = useState<Date | undefined>(undefined);
+  const [turnoFilter, setTurnoFilter] = useState("todos");
   const [viewCalendarOpen, setViewCalendarOpen] = useState(false);
   // Date picker do formulário (data específica da aula)
   const [formCalendarOpen, setFormCalendarOpen] = useState(false);
@@ -258,30 +259,47 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
   const isSyncing = useRef(false);
 
-  const getSalaStatusDinamico = (salaNome: string, blocoSala: string | null, statusBase: string | null): string => {
+  const getSalaStatusDinamico = (salaNome: string, blocoSala: string | null, statusBase: string | null, targetDateISO?: string, targetTurno?: string): string => {
     if (statusBase && statusBase !== "Livre" && statusBase !== "Ocupada") {
       return statusBase;
     }
 
-    const today = dayKey(now);
-    if (!today) return statusBase || "Livre"; // Domingo
-
-    const currentTurno = getCurrentTurno(now);
-
-    // Modelo atômico: verifica se existe aula na sala hoje
     const todayOpts = { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
     const todayStr = now.toLocaleDateString('pt-BR', todayOpts);
     const [dd, mm, yyyy] = todayStr.split('/');
-    const todayISO = `${yyyy}-${mm}-${dd}`;
+    const defaultTodayISO = `${yyyy}-${mm}-${dd}`;
+
+    let dateISO = targetDateISO;
+    if (!dateISO) {
+      if (selectedViewDate) {
+        const dStr = selectedViewDate.toLocaleDateString('pt-BR', todayOpts);
+        const [d, m, y] = dStr.split('/');
+        dateISO = `${y}-${m}-${d}`;
+      } else {
+        dateISO = defaultTodayISO;
+      }
+    }
+
+    let turno = targetTurno;
+    if (!turno) {
+      turno = turnoFilter !== "todos" ? turnoFilter : getCurrentTurno(now);
+    }
+
+    const todayDayKey = dayKey(now); // For legacy fallback
 
     const isOcupada = rows.some((row) => {
       if (row.sala !== salaNome) return false;
-      if (row.turno !== currentTurno) return false;
-      // Modelo atômico: tem disciplina e data é hoje
-      if (row.disciplina && row.data === todayISO) return true;
-      // Fallback legado: coluna do dia da semana
-      const conteudoHoje = (row as any)[today];
-      return conteudoHoje && conteudoHoje.trim() !== "";
+      if (row.turno !== turno) return false;
+      
+      // Modelo atômico:
+      if (row.disciplina && row.data === dateISO) return true;
+      
+      // Fallback legado:
+      if (!row.disciplina && dateISO === defaultTodayISO) {
+        const conteudoHoje = (row as any)[todayDayKey || ""];
+        return conteudoHoje && conteudoHoje.trim() !== "";
+      }
+      return false;
     });
 
     return isOcupada ? "Ocupada" : "Livre";
@@ -611,6 +629,29 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
     if (!form.sala || !form.horario || !form.turno) { toast.error("Preencha sala, turno e horário"); return; }
     if (!form.disciplina) { toast.error("Preencha o nome da disciplina"); return; }
 
+    // Trava Anti-Conflito (Double Booking)
+    if (form.sala) {
+      const isConflict = rows.some((r) => {
+        if (editing && r.id === editing.id) return false; // Ignora o próprio registro
+        if (r.sala !== form.sala) return false;
+        if (r.turno !== form.turno && r.horario !== form.horario) return false;
+        
+        // Se ambos são do modelo atômico, compara a data. 
+        // Se form.data for vazio, é aula recorrente (legado). Aulas recorrentes chocam no mesmo turno/horário.
+        if (form.data && r.data) {
+          if (r.data === form.data) return true;
+          return false;
+        }
+        
+        return true; // Se um deles é recorrente, assume conflito direto
+      });
+
+      if (isConflict) {
+        toast.error(`Conflito de Agenda: A sala ${form.sala} já está reservada para esta data e horário.`);
+        return;
+      }
+    }
+
     // Payload atômico: um registro = uma aula em uma data específica
     const payload = {
       sala: form.sala,
@@ -681,10 +722,13 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
     if (overId.startsWith("room-")) {
       const roomName = overId.replace("room-", "");
       const turmaId = String(active.id);
+      const turma = rows.find(r => r.id === turmaId);
 
       const targetSala = uniqueSalasOptions.find(s => s.nome === roomName);
       if (targetSala) {
-        const statusDinamico = getSalaStatusDinamico(targetSala.nome, targetSala.bloco, targetSala.status);
+        const targetDate = turma?.data || undefined;
+        const targetTurno = turma?.turno || undefined;
+        const statusDinamico = getSalaStatusDinamico(targetSala.nome, targetSala.bloco, targetSala.status, targetDate, targetTurno);
         if (['Manutenção', 'Alagamento', 'Ocupada', 'Defeito Ar'].includes(statusDinamico)) {
           toast.error(`Ação bloqueada: A sala ${targetSala.nome} está atualmente com status de ${statusDinamico}`);
           return;
@@ -851,6 +895,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
     return rows.filter((r) => {
       if (andarFilter !== "todos" && getAndarNumero(r.sala)?.toString() !== andarFilter) return false;
       if (blocoFilter !== "todos" && r.bloco !== blocoFilter) return false;
+      if (turnoFilter !== "todos" && r.turno !== turnoFilter) return false;
 
       if (filterOnlyFreeSalas) {
         const correspondingSala = uniqueSalasOptions.find((s) => s.nome === r.sala);
@@ -952,6 +997,17 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                 )}
               </PopoverContent>
             </Popover>
+
+            <Select value={turnoFilter} onValueChange={setTurnoFilter}>
+              <SelectTrigger className="w-[140px]"><SelectValue placeholder="Turno" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos Turnos</SelectItem>
+                <SelectItem value="Manhã">Manhã</SelectItem>
+                <SelectItem value="Tarde">Tarde</SelectItem>
+                <SelectItem value="Noite">Noite</SelectItem>
+                <SelectItem value="Integral">Integral</SelectItem>
+              </SelectContent>
+            </Select>
 
             <Select value={andarFilter} onValueChange={setAndarFilter}>
               <SelectTrigger className="w-[140px]"><SelectValue placeholder="Andar" /></SelectTrigger>
@@ -1465,7 +1521,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                         {/* GRUPO 1: Salas Livres (Rótulo verde) */}
                         <SelectLabel className="text-green-600 font-bold">Salas Livres</SelectLabel>
                         {uniqueSalasOptions
-                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status) }))
+                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData.aula.data || undefined, remanejarData.aula.turno) }))
                           .filter(s => s.statusDinamico === 'Livre').map(s => (
                             <SelectItem key={s.id} value={s.nome}>
                               <div className="flex items-center gap-2">
@@ -1475,29 +1531,28 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                             </SelectItem>
                           ))}
                         {uniqueSalasOptions
-                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status) }))
+                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData.aula.data || undefined, remanejarData.aula.turno) }))
                           .filter(s => s.statusDinamico === 'Livre').length === 0 && (
                           <div className="px-8 py-2 text-sm text-muted-foreground">Nenhuma sala livre no momento</div>
                         )}
-                      </SelectGroup>
-                      <SelectGroup>
-                        {/* GRUPO 2: Salas Indisponíveis/Em Manutenção (Rótulo roxo) */}
-                        <SelectLabel className="text-purple-600 font-bold pt-4">Salas Indisponíveis / Em Manutenção</SelectLabel>
+                        
+                        <SelectSeparator />
+                        
+                        {/* GRUPO 2: Salas Inativas / Ocupadas (Rótulo cinza/vermelho/roxo) */}
+                        <SelectLabel className="text-muted-foreground font-bold mt-2">Salas Inativas / Ocupadas (Bloqueadas)</SelectLabel>
                         {uniqueSalasOptions
-                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status) }))
-                          .filter(s => ['Ocupada', 'Manutenção', 'Defeito Ar', 'Alagamento'].includes(s.statusDinamico)).map(s => (
-                            <SelectItem key={s.id} value={s.nome}>
+                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData.aula.data || undefined, remanejarData.aula.turno) }))
+                          .filter(s => s.statusDinamico !== 'Livre').map(s => (
+                            <SelectItem key={s.id} value={s.nome} disabled className="opacity-60">
                               <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${s.statusDinamico === 'Ocupada' ? 'bg-red-500' : 'bg-purple-500'}`}></div>
-                                <span>Sala {s.nome} {s.bloco ? `(Bloco ${s.bloco})` : ""} ({s.statusDinamico})</span>
+                                <div className={`w-2 h-2 rounded-full ${
+                                  s.statusDinamico === 'Ocupada' ? 'bg-red-500' : 'bg-purple-500'
+                                }`}></div>
+                                <span className="line-through">Sala {s.nome} {s.bloco ? `(Bloco ${s.bloco})` : ""}</span>
+                                <span className="text-xs ml-auto">({s.statusDinamico})</span>
                               </div>
                             </SelectItem>
                           ))}
-                        {uniqueSalasOptions
-                          .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status) }))
-                          .filter(s => ['Ocupada', 'Manutenção', 'Defeito Ar', 'Alagamento'].includes(s.statusDinamico)).length === 0 && (
-                          <div className="px-8 py-2 text-sm text-muted-foreground">Nenhuma sala nesta categoria</div>
-                        )}
                       </SelectGroup>
                     </SelectContent>
                   </Select>
