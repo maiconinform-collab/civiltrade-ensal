@@ -947,13 +947,8 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   };
 
   const handleAlterarStatusSala = async (salaId: string, salaNome: string, newStatus: string) => {
-    // ✅ FIX: Atualiza o estado local OTIMISTICAMENTE antes mesmo do refetch,
-    // garantindo que o card mude de cor/texto instantaneamente na tela.
-    setSalasOptions(prev =>
-      prev.map(s => s.nome === salaNome ? { ...s, status: newStatus } : s)
-    );
-
     try {
+      // A) Update no banco
       const { error: salaError } = await supabase
         .from("salas")
         .update({ status: newStatus })
@@ -961,6 +956,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
         .eq("unidade", unidade);
       if (salaError) throw salaError;
 
+      // Desvincula turmas se status for de interdição
       if (["Manutenção", "Defeito Ar", "Alagamento"].includes(newStatus)) {
         const { error: ensalamentoError } = await supabase
           .from("ensalamento")
@@ -968,15 +964,35 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
           .eq("sala", salaNome)
           .eq("unidade", unidade);
         if (ensalamentoError) throw ensalamentoError;
+      }
+
+      // B) HARD REFETCH: busca as salas frescas do Supabase e injeta no estado
+      const { data: freshSalas, error: fetchError } = await supabase
+        .from("salas")
+        .select("id, nome, bloco, status, capacidade")
+        .eq("unidade", unidade)
+        .order("nome");
+      if (fetchError) throw fetchError;
+
+      if (freshSalas) {
+        const uniqueMap = new Map<string, SalaOption>();
+        freshSalas.forEach((s: any) => {
+          if (!uniqueMap.has(s.nome)) uniqueMap.set(s.nome, s as SalaOption);
+        });
+        setSalasOptions(Array.from(uniqueMap.values()));
+      }
+
+      // Reload ensalamento rows também (sequencial)
+      await load();
+
+      // C) Toast APÓS o refetch confirmar o novo estado
+      if (["Manutenção", "Defeito Ar", "Alagamento"].includes(newStatus)) {
         toast.success(`Sala ${salaNome} colocada em ${newStatus}. Todas as turmas alocadas nela foram desvinculadas!`);
       } else {
         toast.success(`Status da Sala ${salaNome} alterado para ${newStatus}!`);
       }
 
-      // Refetch em background para sincronizar com o banco (sem bloquear a UI)
-      load();
-      loadOptions();
-
+      // Atualiza modal de remanejamento se necessário
       if (remanejarData && remanejarData.aula.sala === salaNome && ["Manutenção", "Defeito Ar", "Alagamento"].includes(newStatus)) {
         setRemanejarData({
           ...remanejarData,
@@ -984,9 +1000,6 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
         });
       }
     } catch (err: any) {
-      // Reverte o estado otimista re-buscando do banco (a mutação local já alterou o valor,
-      // então `s.status` já é o novo — a única forma confiável de reverter é buscar do servidor).
-      await loadOptions();
       toast.error("Erro ao alterar status da sala", { description: err.message });
     }
   };
@@ -1265,8 +1278,9 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 gap-3">
                           {salasDoAndar.map(room => (
-                            <div key={`dnd-room-wrapper-${room.id}`} className="flex flex-col gap-1.5">
+                            <div key={`dnd-room-${room.id}-${room.statusDinamico}`} className="flex flex-col gap-1.5">
                               <DroppableRoomBlock
+                                key={`block-${room.id}-${room.statusDinamico}`}
                                 room={{ ...room, status: room.statusDinamico }}
                                 nextUse={nextUses[room.nome]}
                                 onStatusChange={handleAlterarStatusSala}
