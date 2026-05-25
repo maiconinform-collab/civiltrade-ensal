@@ -24,8 +24,16 @@ import {
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
-import { Plus, Pencil, Trash2, Loader2, Search, GripVertical, Upload, ArrowRightLeft, Download, CalendarIcon, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search, GripVertical, Upload, ArrowRightLeft, Download, CalendarIcon, X, Check, ChevronsUpDown } from "lucide-react";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import * as XLSX from "xlsx";
@@ -117,12 +125,12 @@ function DroppableRoomBlock({
 
   const getStatusColors = (status: string) => {
     switch (status) {
-      case "Livre": return "border-green-500/30 bg-green-500/5 hover:border-green-500 hover:bg-green-500/10 text-green-700";
-      case "Ocupada": return "border-red-500/30 bg-red-500/5 hover:border-red-500 hover:bg-red-500/10 text-red-700";
-      case "Manutenção": return "border-purple-500/30 bg-purple-500/5 hover:border-purple-500 hover:bg-purple-500/10 text-purple-700";
-      case "Defeito Ar": return "border-amber-500/30 bg-amber-500/5 hover:border-amber-500 hover:bg-amber-500/10 text-amber-700";
-      case "Alagamento": return "border-blue-500/30 bg-blue-500/5 hover:border-blue-500 hover:bg-blue-500/10 text-blue-700";
-      default: return "border-gray-500/30 bg-gray-500/5 text-gray-700";
+      case "Livre": return "border-green-500/30 bg-green-500/5";
+      case "Ocupada": return "border-red-500/30 bg-red-500/5";
+      case "Manutenção": return "border-purple-500/30 bg-purple-500/5";
+      case "Defeito Ar": return "border-amber-500/30 bg-amber-500/5";
+      case "Alagamento": return "border-blue-500/30 bg-blue-500/5";
+      default: return "border-gray-500/30 bg-gray-500/5";
     }
   };
 
@@ -132,33 +140,33 @@ function DroppableRoomBlock({
   return (
     <div
       ref={setNodeRef}
-      className={`p-3 rounded-xl border-2 transition-all duration-300 flex flex-col items-center justify-between min-w-[130px] h-[120px] ${
-        isOver
-          ? "border-primary bg-primary/20 scale-105 shadow-glow"
-          : colors
+      className={`p-4 border rounded-xl shadow-sm flex flex-col justify-between bg-card transition-all duration-300 min-w-[150px] h-[135px] ${
+        isOver ? "border-primary scale-105 shadow-glow" : colors
       } ${statusDinamico !== "Livre" ? "opacity-80" : "cursor-pointer"}`}
     >
-      <div className="flex flex-col items-center leading-tight">
-        <span className="text-[10px] font-semibold uppercase tracking-wider opacity-80">Sala</span>
-        <span className="text-lg font-bold">{room.nome}</span>
-        <div className="flex items-center gap-1 mt-0.5">
-          {room.capacidade ? (
-            <span className="text-[10px] font-medium opacity-80 bg-background/40 px-1.5 rounded-sm">Cap: {room.capacidade}</span>
-          ) : null}
-          {room.bloco ? (
+      <div className="flex items-start justify-between">
+        <div className="flex flex-col leading-tight">
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Sala</span>
+          <span className="text-2xl font-bold">{room.nome}</span>
+        </div>
+        <div className="flex flex-col items-end gap-1">
+          {room.capacidade && (
+            <span className="text-[10px] font-medium bg-muted/50 px-1.5 rounded text-muted-foreground">cap {room.capacidade}</span>
+          )}
+          {room.bloco && (
             <span className="text-[10px] font-medium opacity-80">Bl. {room.bloco}</span>
-          ) : null}
+          )}
         </div>
       </div>
 
-      <div className="w-full flex flex-col items-center gap-1 mt-2" onClick={(e) => e.stopPropagation()}>
+      <div className="w-full flex flex-col gap-1.5 mt-2" onClick={(e) => e.stopPropagation()}>
         <Select 
           value={statusDinamico}
           onValueChange={(val) => {
             if (onStatusChange) onStatusChange(room.id, room.nome, val);
           }}
         >
-          <SelectTrigger className={`h-6 text-[10px] bg-background/50 border-0 ${statusDinamico === 'Livre' ? 'text-green-700' : ''}`}>
+          <SelectTrigger className={`h-7 text-xs ${statusDinamico === 'Livre' ? 'text-green-700 bg-green-500/10 border-green-500/20' : ''} ${statusDinamico === 'Manutenção' ? 'text-purple-700 bg-purple-500/10 border-purple-500/20' : ''} ${statusDinamico === 'Ocupada' ? 'text-red-700 bg-red-500/10 border-red-500/20' : ''}`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -170,7 +178,7 @@ function DroppableRoomBlock({
           </SelectContent>
         </Select>
         {nextUse && statusDinamico === "Livre" && (
-          <span className="text-[8px] opacity-70 mt-0.5">Uso: {nextUse}</span>
+          <span className="text-[9px] text-muted-foreground truncate w-full">Uso: {nextUse}</span>
         )}
       </div>
     </div>
@@ -242,6 +250,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   const [andarFilter, setAndarFilter] = useState("todos");
   const [blocoFilter, setBlocoFilter] = useState("todos");
   const [open, setOpen] = useState(false);
+  const [salaComboboxOpen, setSalaComboboxOpen] = useState(false);
   const [editing, setEditing] = useState<Ensalamento | null>(null);
   const [form, setForm] = useState(empty);
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -1452,22 +1461,52 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
                 <div className="space-y-2 col-span-1">
                   <Label className="text-sm font-medium">Sala *</Label>
-                  {!salaCustom && uniqueSalasOptions.length > 0 ? (
-                    <Select value={form.sala} onValueChange={handleSalaSelect}>
-                      <SelectTrigger className="h-10"><SelectValue placeholder="Sala" /></SelectTrigger>
-                      <SelectContent>
-                        {uniqueSalasOptions.map((s) => (
-                          <SelectItem key={s.id} value={s.nome}>{s.nome}{s.bloco ? ` (Bl. ${s.bloco})` : ""}</SelectItem>
-                        ))}
-                        <SelectItem value="__custom__">✏️ Digitar...</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  ) : (
-                    <div className="flex gap-1">
-                      <Input value={form.sala} onChange={handleSalaChange} placeholder="703" className="flex-1 h-10 text-sm" />
-                      {uniqueSalasOptions.length > 0 && <Button variant="outline" size="sm" className="h-10 px-2" onClick={() => setSalaCustom(false)}>↩</Button>}
-                    </div>
-                  )}
+                  <Popover open={salaComboboxOpen} onOpenChange={setSalaComboboxOpen}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        role="combobox"
+                        aria-expanded={salaComboboxOpen}
+                        className="w-full justify-between h-10 text-sm font-normal"
+                      >
+                        {form.sala
+                          ? uniqueSalasOptions.find((s) => s.nome === form.sala)?.nome || form.sala
+                          : "Selecionar sala..."}
+                        <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[200px] p-0" align="start">
+                      <Command
+                        filter={(value, search) => {
+                          const sala = uniqueSalasOptions.find(s => s.nome.toLowerCase() === value.toLowerCase());
+                          if (!sala) return 0;
+                          const combined = `${sala.nome} ${sala.bloco || ""}`.toLowerCase();
+                          if (combined.includes(search.toLowerCase())) return 1;
+                          return 0;
+                        }}
+                      >
+                        <CommandInput placeholder="Buscar sala..." />
+                        <CommandList>
+                          <CommandEmpty>Nenhuma sala encontrada.</CommandEmpty>
+                          <CommandGroup>
+                            {uniqueSalasOptions.map((s) => (
+                              <CommandItem
+                                key={s.id}
+                                value={s.nome}
+                                onSelect={(currentValue) => {
+                                  setForm({ ...form, sala: currentValue, bloco: s.bloco ?? "" });
+                                  setSalaComboboxOpen(false);
+                                }}
+                              >
+                                <Check className={`mr-2 h-4 w-4 ${form.sala === s.nome ? "opacity-100" : "opacity-0"}`} />
+                                {s.nome}{s.bloco ? ` (Bl. ${s.bloco})` : ""}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                 </div>
 
                 <div className="space-y-2 col-span-1">
