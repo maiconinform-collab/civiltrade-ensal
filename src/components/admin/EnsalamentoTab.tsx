@@ -49,7 +49,7 @@ type Ensalamento = {
   quinta: string | null; sexta: string | null; sabado: string | null;
 };
 
-type SalaOption = { id: string; nome: string; bloco: string | null; status?: string };
+type SalaOption = { id: string; nome: string; bloco: string | null; status?: string; capacidade?: number | null; };
 type HorarioOption = { id: string; turno: string; hora_inicio: string; hora_fim: string };
 
 // Modelo atômico: 1 linha = 1 aula em 1 data específica
@@ -126,7 +126,7 @@ function DroppableRoomBlock({
     }
   };
 
-  const statusDinamico = (room as any).statusDinamico || room.status || "Livre";
+  const statusDinamico = room.statusDinamico || room.status || "Livre";
   const colors = getStatusColors(statusDinamico);
 
   return (
@@ -138,34 +138,40 @@ function DroppableRoomBlock({
           : colors
       } ${statusDinamico !== "Livre" ? "opacity-80" : "cursor-pointer"}`}
     >
-      <div className="flex flex-col items-center">
+      <div className="flex flex-col items-center leading-tight">
         <span className="text-[10px] font-semibold uppercase tracking-wider opacity-80">Sala</span>
         <span className="text-lg font-bold">{room.nome}</span>
-        {room.bloco && (
-          <span className="text-[10px] font-medium opacity-80">Bloco {room.bloco}</span>
-        )}
+        <div className="flex items-center gap-1 mt-0.5">
+          {room.capacidade ? (
+            <span className="text-[10px] font-medium opacity-80 bg-background/40 px-1.5 rounded-sm">Cap: {room.capacidade}</span>
+          ) : null}
+          {room.bloco ? (
+            <span className="text-[10px] font-medium opacity-80">Bl. {room.bloco}</span>
+          ) : null}
+        </div>
       </div>
 
       <div className="w-full flex flex-col items-center gap-1 mt-2" onClick={(e) => e.stopPropagation()}>
         <Select 
-          value={room.status || "Livre"} 
-          onValueChange={(val) => onStatusChange && onStatusChange(room.id, room.nome, val)}
+          value={statusDinamico}
+          onValueChange={(val) => {
+            if (onStatusChange) onStatusChange(room.id, room.nome, val);
+          }}
         >
-          <SelectTrigger className="h-6 text-[10px] w-full px-2 py-0 border-black/10 dark:border-white/10 bg-background/50 shadow-sm focus:ring-0">
+          <SelectTrigger className={`h-6 text-[10px] bg-background/50 border-0 ${statusDinamico === 'Livre' ? 'text-green-700' : ''}`}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="Livre" className="text-[10px]">Livre</SelectItem>
-            <SelectItem value="Ocupada" className="text-[10px]">Ocupada</SelectItem>
-            <SelectItem value="Manutenção" className="text-[10px]">Em Manutenção</SelectItem>
-            <SelectItem value="Defeito Ar" className="text-[10px]">Defeito no Ar</SelectItem>
-            <SelectItem value="Alagamento" className="text-[10px]">Alagamento</SelectItem>
+            <SelectItem value="Livre">🟢 Livre</SelectItem>
+            <SelectItem value="Ocupada">🔴 Ocupada</SelectItem>
+            <SelectItem value="Manutenção">🔧 Manutenção</SelectItem>
+            <SelectItem value="Defeito Ar">⚠️ Defeito Ar</SelectItem>
+            <SelectItem value="Alagamento">🌊 Alagamento</SelectItem>
           </SelectContent>
         </Select>
-
-        <span className="text-[9px] font-medium opacity-80 whitespace-nowrap overflow-hidden text-ellipsis w-full text-center">
-          {nextUse ? `Uso: ${nextUse}` : "Uso: Livre"}
-        </span>
+        {nextUse && statusDinamico === "Livre" && (
+          <span className="text-[8px] opacity-70 mt-0.5">Uso: {nextUse}</span>
+        )}
       </div>
     </div>
   );
@@ -351,7 +357,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
   const loadOptions = async () => {
     const [salasRes, horariosRes] = await Promise.all([
-      supabase.from("salas").select("id, nome, bloco, status").eq("unidade", unidade).order("nome"),
+      supabase.from("salas").select("id, nome, bloco, status, capacidade").eq("unidade", unidade).order("nome"),
       supabase.from("horarios").select("id, turno, hora_inicio, hora_fim").order("turno").order("hora_inicio"),
     ]);
 
@@ -386,7 +392,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       await supabase.from("salas").upsert(salasParaInserir, { onConflict: "nome, unidade" });
       
       // Busca a lista atualizada com os IDs gerados
-      const { data: recarregadas } = await supabase.from("salas").select("id, nome, bloco, status").eq("unidade", unidade).order("nome");
+      const { data: recarregadas } = await supabase.from("salas").select("id, nome, bloco, status, capacidade").eq("unidade", unidade).order("nome");
       if (recarregadas) rawSalas = recarregadas as SalaOption[];
     }
 
@@ -466,7 +472,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       // Recarrega as salas para atualizar o dropdown e o PND
       const { data: newSalas } = await supabase
         .from("salas")
-        .select("id, nome, bloco, status")
+        .select("id, nome, bloco, status, capacidade")
         .eq("unidade", unidade)
         .order("nome");
         
@@ -1186,56 +1192,46 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
               <DraggableStatusCard status="Alagamento" />
             </div>
 
-            <div className="flex flex-col gap-6">
-              {/* ZONA DE SALAS LIVRES */}
-              <div>
-                <h4 className="text-sm font-semibold text-green-700/80 mb-3 flex items-center gap-1.5">
-                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Salas Livres (Arraste aqui)
-                </h4>
-                <div className="flex flex-wrap items-center gap-3">
-                  {uniqueSalasOptions
-                    .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status) }))
-                    .filter(s => s.statusDinamico === 'Livre').map((room) => (
-                      <DroppableRoomBlock 
-                        key={room.id} 
-                        room={{ ...room, status: room.statusDinamico }} 
-                        nextUse={nextUses[room.nome]}
-                        onStatusChange={handleAlterarStatusSala}
-                      />
-                    ))}
-                  {uniqueSalasOptions
-                    .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status) }))
-                    .filter(s => s.statusDinamico === 'Livre').length === 0 && (
-                    <p className="text-sm text-muted-foreground py-4">Nenhuma sala livre disponível no momento.</p>
-                  )}
-                  <div className="h-10 w-px bg-border/60 mx-1 hidden sm:block"></div>
-                  <DroppableMaintenanceZone />
-                </div>
-              </div>
+            <div className="flex flex-col gap-8">
+              {andaresUnicos.map(andar => {
+                const salasDoAndar = uniqueSalasOptions
+                  .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status) }))
+                  .filter(s => getAndarNumero(s.nome) === andar);
+                
+                if (salasDoAndar.length === 0) return null;
 
-              {/* ZONA DE SALAS INATIVAS/COM PROBLEMA */}
-              <div>
-                <h4 className="text-sm font-semibold text-muted-foreground mb-3 border-t pt-4">
-                  Salas Inativas / Ocupadas
-                </h4>
-                <div className="flex flex-wrap items-center gap-3">
-                  {uniqueSalasOptions
-                    .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status) }))
-                    .filter(s => s.statusDinamico !== 'Livre').map((room) => (
-                      <DroppableRoomBlock 
-                        key={room.id} 
-                        room={{ ...room, status: room.statusDinamico }} 
-                        nextUse={nextUses[room.nome]}
-                        onStatusChange={handleAlterarStatusSala}
-                      />
-                    ))}
-                  {uniqueSalasOptions
-                    .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status) }))
-                    .filter(s => s.statusDinamico !== 'Livre').length === 0 && (
-                    <p className="text-sm text-muted-foreground py-4">Todas as salas estão livres.</p>
-                  )}
-                </div>
-              </div>
+                return (
+                  <div key={andar} className="space-y-3">
+                    <div className="flex items-center gap-4 border-b border-border/50 pb-2">
+                      <h4 className="text-lg font-bold text-foreground">
+                        {andar}º Andar
+                      </h4>
+                      <span className="text-xs font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">
+                        {salasDoAndar.length} Salas
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 gap-4">
+                      {salasDoAndar.map(room => (
+                        <DroppableRoomBlock 
+                          key={room.id} 
+                          room={{ ...room, status: room.statusDinamico }} 
+                          nextUse={nextUses[room.nome]}
+                          onStatusChange={handleAlterarStatusSala}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+              {uniqueSalasOptions.length === 0 && (
+                <p className="text-sm text-muted-foreground py-4">Nenhuma sala disponível. Tente importar os dados.</p>
+              )}
+            </div>
+
+            {/* ZONA DE INTERDIÇÃO - Opcional, mantida para Drag & Drop */}
+            <div className="mt-6 border-t pt-4 flex flex-col items-start gap-3">
+              <span className="text-xs text-muted-foreground font-semibold">Mandar Turma para Manutenção:</span>
+              <DroppableMaintenanceZone />
             </div>
           </div>
         )}
