@@ -263,6 +263,13 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
   const [remanejarData, setRemanejarData] = useState<{ aula: Ensalamento, novaSala: string } | null>(null);
   const [loadingModal, setLoadingModal] = useState(false);
+  // Estado para confirmação de DnD em sala com problema
+  const [dndConfirmData, setDndConfirmData] = useState<{
+    turmaId: string;
+    roomName: string;
+    bloco: string | null;
+    statusAlvo: string;
+  } | null>(null);
 
   const [salasOptions, setSalasOptions] = useState<SalaOption[]>([]);
   const [horariosOptions, setHorariosOptions] = useState<HorarioOption[]>([]);
@@ -334,7 +341,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       "7º Andar": ["703", "704", "705", "706"],
       "8º Andar": ["801", "802", "803", "805", "806"],
       "9º Andar": ["901", "902", "903", "906", "907"],
-      "11º Andar (PND)": ["1101", "1102", "1103", "1104"]
+      "11º Andar": ["1101", "1102", "1103", "1104"]
     };
     const fallback: SalaOption[] = [];
     Object.entries(andaresBase).forEach(([bloco, salas]) => {
@@ -393,7 +400,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       "7º Andar": ["703", "704", "705", "706"],
       "8º Andar": ["801", "802", "803", "805", "806"],
       "9º Andar": ["901", "902", "903", "906", "907"],
-      "11º Andar (PND)": ["1101", "1102", "1103", "1104"]
+      "11º Andar": ["1101", "1102", "1103", "1104"]
     };
 
     const salasEsperadasMap = new Map<string, string>();
@@ -806,18 +813,22 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       const turma = rows.find(r => r.id === turmaId);
 
       const targetSala = currentSalasOptions.find(s => s.nome === roomName);
+
+      const bloco = targetSala?.bloco || null;
+
       if (targetSala) {
         const targetDate = turma?.data || undefined;
         const targetTurno = turma?.turno || undefined;
         const statusDinamico = getSalaStatusDinamico(targetSala.nome, targetSala.bloco, targetSala.status, targetDate, targetTurno);
+
+        // ✅ FIX: Em vez de bloquear, abre AlertDialog de confirmação
         if (['Manutenção', 'Alagamento', 'Ocupada', 'Defeito Ar'].includes(statusDinamico)) {
-          toast.error(`Ação bloqueada: A sala ${targetSala.nome} está atualmente com status de ${statusDinamico}`);
-          return;
+          setDndConfirmData({ turmaId, roomName, bloco, statusAlvo: statusDinamico });
+          return; // Pausa, aguarda confirmação do usuário
         }
       }
 
-      const bloco = targetSala?.bloco || null;
-
+      // Sala livre: executa direto
       setLoading(true);
       try {
         const { error } = await supabase
@@ -1196,7 +1207,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
         {/* PAINEL DE REMANEJAMENTO RÁPIDO (DND) */}
         {showDndPanel && (
-          <div className="glass-card p-6 border-amber-500/30 bg-amber-500/5 rounded-2xl animate-fade-in space-y-4 mb-4">
+          <div className="glass-card p-6 border-amber-500/30 bg-amber-500/5 rounded-2xl animate-fade-in space-y-5 mb-4">
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-bold text-amber-800 dark:text-amber-400 flex items-center gap-2">
@@ -1204,7 +1215,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                   Painel de Ferramentas DnD (Remanejamento e Status)
                 </h3>
                 <p className="text-xs text-muted-foreground">
-                  Arraste uma turma da tabela (pelo ícone de ordenação <GripVertical className="inline w-3.5 h-3.5" />) e solte-a no painel visual abaixo para remanejar instantaneamente.
+                  Arraste uma turma da tabela (pelo ícone de ordenação <GripVertical className="inline w-3.5 h-3.5" />) e solte-a em uma sala abaixo para remanejar. Use os badges coloridos para alterar o status da sala via arrastar.
                 </p>
               </div>
               <Button
@@ -1219,17 +1230,74 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
             {/* BARRA DE STATUS DRAGGABLES */}
             <div className="flex flex-wrap items-center gap-3 p-3 bg-background/40 border border-border/50 rounded-xl">
-              <span className="text-xs text-muted-foreground font-semibold">🔧 Alterar Status da Sala (Arrastar no bloco):</span>
+              <span className="text-xs text-muted-foreground font-semibold">🔧 Arraste o status desejado sobre o bloco da sala:</span>
               <DraggableStatusCard status="Livre" />
               <DraggableStatusCard status="Ocupada" />
               <DraggableStatusCard status="Manutenção" />
               <DraggableStatusCard status="Alagamento" />
             </div>
 
-            {/* ZONA DE INTERDIÇÃO - Opcional, mantida para Drag & Drop */}
-            <div className="mt-2 flex flex-col items-start gap-3">
-              <span className="text-xs text-muted-foreground font-semibold">Mandar Turma para Manutenção:</span>
-              <DroppableMaintenanceZone />
+            {/* ZONA DE INTERDIÇÃO + GRID DE SALAS DROPPABLE */}
+            <div className="space-y-4">
+              {/* Zona de Manutenção rápida (DnD de turma) */}
+              <div className="flex flex-col items-start gap-2">
+                <span className="text-xs text-muted-foreground font-semibold">Enviar turma diretamente para Manutenção (DnD):</span>
+                <DroppableMaintenanceZone />
+              </div>
+
+              {/* GRID DE SALAS DROPPABLE — principal área de remanejamento visual */}
+              <div className="space-y-4">
+                <span className="text-xs text-muted-foreground font-semibold">🏠 Arraste a turma até a sala de destino:</span>
+                <div className="flex flex-col gap-6">
+                  {andaresUnicos.map(andar => {
+                    const salasDoAndar = currentSalasOptions
+                      .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status) }))
+                      .filter(s => getAndarNumero(s.nome) === andar);
+
+                    if (salasDoAndar.length === 0) return null;
+
+                    return (
+                      <div key={`dnd-andar-${andar}`} className="space-y-2">
+                        <div className="flex items-center gap-3 border-b border-amber-500/20 pb-1">
+                          <h4 className="text-sm font-bold text-amber-800 dark:text-amber-400">{andar}º Andar</h4>
+                          <span className="text-[10px] font-medium text-muted-foreground bg-muted/50 px-2 py-0.5 rounded-full">{salasDoAndar.length} salas</span>
+                        </div>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-7 xl:grid-cols-8 gap-3">
+                          {salasDoAndar.map(room => (
+                            <div key={`dnd-room-wrapper-${room.id}`} className="flex flex-col gap-1.5">
+                              <DroppableRoomBlock
+                                room={{ ...room, status: room.statusDinamico }}
+                                nextUse={nextUses[room.nome]}
+                                onStatusChange={handleAlterarStatusSala}
+                              />
+                              {/* Botões rápidos de interdição conectados a handleAlterarStatusSala */}
+                              <div className="flex gap-1">
+                                <button
+                                  title="Colocar em Manutenção"
+                                  className="flex-1 text-[9px] font-semibold py-1 px-1.5 rounded-lg bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/30 hover:bg-purple-500/20 hover:border-purple-500 transition-all active:scale-95"
+                                  onClick={() => handleAlterarStatusSala(room.id, room.nome, 'Manutenção')}
+                                >
+                                  🔧 Manutenção
+                                </button>
+                                <button
+                                  title="Liberar Sala"
+                                  className="flex-1 text-[9px] font-semibold py-1 px-1.5 rounded-lg bg-green-500/10 text-green-700 dark:text-green-400 border border-green-500/30 hover:bg-green-500/20 hover:border-green-500 transition-all active:scale-95"
+                                  onClick={() => handleAlterarStatusSala(room.id, room.nome, 'Livre')}
+                                >
+                                  🟢 Liberar
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {currentSalasOptions.length === 0 && (
+                    <p className="text-sm text-muted-foreground py-4 text-center">Nenhuma sala disponível. Importe os dados ou aguarde o carregamento.</p>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1697,12 +1765,11 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                           .filter(s => s.statusDinamico !== 'Livre').map(s => (
                             <SelectItem key={s.id} value={s.nome}>
                               <div className="flex items-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${
-                                  s.statusDinamico === 'Ocupada' ? 'bg-red-500' :
+                                <div className={`w-2 h-2 rounded-full ${s.statusDinamico === 'Ocupada' ? 'bg-red-500' :
                                   s.statusDinamico === 'Manutenção' ? 'bg-purple-500' :
-                                  s.statusDinamico === 'Defeito Ar' ? 'bg-amber-500' :
-                                  'bg-blue-500'
-                                }`}></div>
+                                    s.statusDinamico === 'Defeito Ar' ? 'bg-amber-500' :
+                                      'bg-blue-500'
+                                  }`}></div>
                                 <span>Sala {s.nome}{s.bloco ? ` (${s.bloco})` : ""}</span>
                                 <span className="text-xs text-muted-foreground ml-auto">({s.statusDinamico})</span>
                               </div>
@@ -1736,6 +1803,50 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
             <AlertDialogFooter>
               <AlertDialogCancel>Cancelar</AlertDialogCancel>
               <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90">Excluir</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* ALERTA DE CONFIRMAÇÃO DnD — sala com problema */}
+        <AlertDialog open={!!dndConfirmData} onOpenChange={(v) => !v && setDndConfirmData(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                ⚠️ Atenção: Sala com Problema!
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-sm">
+                A sala <strong>{dndConfirmData?.roomName}</strong> está atualmente com status de{" "}
+                <strong className="text-amber-600 dark:text-amber-400">"{dndConfirmData?.statusAlvo}"</strong>.
+                <br /><br />
+                Deseja remanejar a turma para esta sala mesmo assim? Isso pode gerar um conflito operacional.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel onClick={() => setDndConfirmData(null)}>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={async () => {
+                  if (!dndConfirmData) return;
+                  const { turmaId, roomName, bloco } = dndConfirmData;
+                  setDndConfirmData(null);
+                  setLoading(true);
+                  try {
+                    const { error } = await supabase
+                      .from("ensalamento")
+                      .update({ sala: roomName, bloco })
+                      .eq("id", turmaId);
+                    if (error) throw error;
+                    toast.success(`Turma remanejada para Sala ${roomName} (com restrição).`);
+                    load();
+                  } catch (err: any) {
+                    toast.error("Erro ao remanejar", { description: err.message });
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+              >
+                Confirmar mesmo assim
+              </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
