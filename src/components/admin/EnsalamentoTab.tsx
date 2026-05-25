@@ -949,20 +949,37 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
   const handleAlterarStatusSala = async (salaNome: string, newStatus: string) => {
     try {
-      // A) Update via nome+unidade_id
-      const { data, error } = await supabase
+      // 1. Tente Fazer o Update Primeiro
+      const { data: updateData, error: updateError } = await supabase
         .from("salas")
         .update({ status: newStatus })
         .eq("nome", salaNome)
         .eq("unidade_id", unidade)
         .select();
 
-      if (error) throw error;
+      if (updateError) throw updateError;
 
-      // Tratamento de Falha Silenciosa (0 linhas afetadas)
-      if (!data || data.length === 0) {
-        toast.error(`Falha: Nenhuma sala encontrada com nome "${salaNome}" na unidade. Tente recarregar a página.`);
-        return;
+      // 2. Fallback para INSERT se a sala ainda não existir no banco
+      if (!updateData || updateData.length === 0) {
+        const localSala = currentSalasOptions.find(s => s.nome === salaNome);
+        const blocoVal = localSala?.bloco || null;
+        const capVal = localSala?.capacidade || null;
+
+        const { error: insertError } = await supabase
+          .from("salas")
+          .insert([{
+            nome: salaNome,
+            unidade_id: unidade,
+            status: newStatus,
+            bloco: blocoVal,
+            capacidade: capVal
+          }])
+          .select();
+
+        if (insertError) {
+          toast.error("Erro ao criar a sala no banco de dados.");
+          return;
+        }
       }
 
       // Desvincula turmas se status for de interdição
