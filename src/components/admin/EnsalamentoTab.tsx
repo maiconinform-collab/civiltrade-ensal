@@ -354,7 +354,16 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       supabase.from("salas").select("id, nome, bloco, status").eq("unidade", unidade).order("nome"),
       supabase.from("horarios").select("id, turno, hora_inicio, hora_fim").order("turno").order("hora_inicio"),
     ]);
-    setSalasOptions((salasRes.data as SalaOption[]) ?? []);
+
+    // Filtragem de duplicatas na interface (Fallback de Segurança)
+    const rawSalas = (salasRes.data as SalaOption[]) || [];
+    const uniqueMap = new Map<string, SalaOption>();
+    rawSalas.forEach(s => {
+      if (!uniqueMap.has(s.nome)) uniqueMap.set(s.nome, s);
+    });
+    const uniqueSalas = Array.from(uniqueMap.values());
+
+    setSalasOptions(uniqueSalas);
     setHorariosOptions((horariosRes.data as HorarioOption[]) ?? []);
   };
 
@@ -398,6 +407,13 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
     // Filtra salas únicas das aulas
     const uniqueRooms = Array.from(new Set(currentRows.map(r => r.sala).filter(Boolean)));
+    
+    // Inclusão das salas do 11º andar obrigatórias
+    const baseRooms11 = ["1101", "1102", "1103", "1104"];
+    baseRooms11.forEach(sala => {
+      if (!uniqueRooms.includes(sala)) uniqueRooms.push(sala);
+    });
+
     if (uniqueRooms.length === 0) return;
 
     try {
@@ -411,7 +427,8 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
         };
       });
 
-      const { error } = await supabase.from("salas").insert(salasParaInserir);
+      // Operação estrita de upsert com onConflict para evitar resíduos e duplicatas
+      const { error } = await supabase.from("salas").upsert(salasParaInserir, { onConflict: "nome, unidade" });
       if (error) throw error;
 
       toast.success(`${salasParaInserir.length} salas importadas automaticamente com status 'Livre'!`, {
@@ -424,8 +441,14 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
         .select("id, nome, bloco, status")
         .eq("unidade", unidade)
         .order("nome");
+        
       if (newSalas) {
-        setSalasOptions(newSalas as SalaOption[]);
+        // Aplica o filtro de unicidade antes do set (segurança extra)
+        const uniqueMap = new Map<string, SalaOption>();
+        newSalas.forEach(s => {
+          if (!uniqueMap.has(s.nome)) uniqueMap.set(s.nome, s as SalaOption);
+        });
+        setSalasOptions(Array.from(uniqueMap.values()));
       }
     } catch (e: any) {
       console.error("Erro ao sincronizar salas:", e);
@@ -1471,7 +1494,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
         <Dialog open={!!remanejarData} onOpenChange={(v) => !v && setRemanejarData(null)}>
           <DialogContent className="glass-strong">
             <DialogHeader><DialogTitle>Remanejar Turma</DialogTitle></DialogHeader>
-            {remanejarData && (
+            {remanejarData?.aula ? (
               <div className="space-y-4 py-2">
                 <div className="p-4 bg-muted/50 rounded-lg border border-border">
                   <p className="text-sm text-muted-foreground mb-1">Disciplina / Detalhes</p>
@@ -1488,9 +1511,9 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                       <div className="flex items-center justify-between">
                         <span className="text-xs text-muted-foreground font-medium">Alterar Status da Sala {remanejarData.aula.sala}:</span>
                         <Select
-                          value={uniqueSalasOptions.find(s => s.nome === remanejarData.aula.sala)?.status || "Livre"}
+                          value={uniqueSalasOptions?.find(s => s.nome === remanejarData.aula.sala)?.status || "Livre"}
                           onValueChange={async (newStatus) => {
-                            const targetSala = uniqueSalasOptions.find(s => s.nome === remanejarData.aula.sala);
+                            const targetSala = uniqueSalasOptions?.find(s => s.nome === remanejarData.aula.sala);
                             if (targetSala) {
                               await handleAlterarStatusSala(targetSala.id, targetSala.nome, newStatus);
                             }
@@ -1520,7 +1543,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                       <SelectGroup>
                         {/* GRUPO 1: Salas Livres (Rótulo verde) */}
                         <SelectLabel className="text-green-600 font-bold">Salas Livres</SelectLabel>
-                        {uniqueSalasOptions
+                        {(uniqueSalasOptions ?? [])
                           .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData.aula.data || undefined, remanejarData.aula.turno) }))
                           .filter(s => s.statusDinamico === 'Livre').map(s => (
                             <SelectItem key={s.id} value={s.nome}>
@@ -1530,7 +1553,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                               </div>
                             </SelectItem>
                           ))}
-                        {uniqueSalasOptions
+                        {(uniqueSalasOptions ?? [])
                           .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData.aula.data || undefined, remanejarData.aula.turno) }))
                           .filter(s => s.statusDinamico === 'Livre').length === 0 && (
                           <div className="px-8 py-2 text-sm text-muted-foreground">Nenhuma sala livre no momento</div>
@@ -1540,7 +1563,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                         
                         {/* GRUPO 2: Salas Inativas / Ocupadas (Rótulo cinza/vermelho/roxo) */}
                         <SelectLabel className="text-muted-foreground font-bold mt-2">Salas Inativas / Ocupadas (Bloqueadas)</SelectLabel>
-                        {uniqueSalasOptions
+                        {(uniqueSalasOptions ?? [])
                           .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status, remanejarData.aula.data || undefined, remanejarData.aula.turno) }))
                           .filter(s => s.statusDinamico !== 'Livre').map(s => (
                             <SelectItem key={s.id} value={s.nome} disabled className="opacity-60">
@@ -1558,10 +1581,15 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                   </Select>
                 </div>
               </div>
+            ) : (
+              <div className="py-8 flex flex-col items-center justify-center">
+                 <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+                 <p className="mt-4 text-sm text-muted-foreground">Carregando dados da sala...</p>
+              </div>
             )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setRemanejarData(null)}>Cancelar</Button>
-              <Button onClick={handleConfirmarRemanejamento} disabled={!remanejarData?.novaSala || remanejarData.novaSala === remanejarData.aula.sala} className="gradient-brand border-0">Confirmar Remanejamento</Button>
+              <Button onClick={handleConfirmarRemanejamento} disabled={!remanejarData?.novaSala || remanejarData.novaSala === remanejarData?.aula?.sala} className="gradient-brand border-0">Confirmar Remanejamento</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
