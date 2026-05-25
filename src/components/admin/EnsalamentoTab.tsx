@@ -348,7 +348,8 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
     };
     const fallback: SalaOption[] = [];
     Object.entries(andaresBase).forEach(([bloco, salas]) => {
-      salas.forEach(nome => fallback.push({ id: `fb-${nome}`, nome, bloco, status: "Livre" }));
+      // ID vazio indica sala ainda não persistida no banco (sem UUID real)
+      salas.forEach(nome => fallback.push({ id: "", nome, bloco, status: "Livre" }));
     });
     return fallback;
   }, []);
@@ -948,19 +949,35 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
   const handleAlterarStatusSala = async (salaId: string, salaNome: string, newStatus: string) => {
     try {
-      // A) Update no banco com .select() forçado para pegar o retorno
-      const { data: updatedData, error: salaError } = await supabase
-        .from("salas")
-        .update({ status: newStatus })
-        .eq("id", salaId)
-        .select();
+      // Verifica se esta sala ainda é um fallback sem UUID real no banco.
+      // Isso ocorre quando a sala não foi persistida ainda (ex: 11º Andar recém-exibido).
+      const isFallback = !salaId || salaId === "";
 
-      if (salaError) throw salaError;
+      if (isFallback) {
+        // Sala ainda não existe no banco — faz upsert primeiro para criar o registro
+        const { error: upsertError } = await supabase
+          .from("salas")
+          .upsert(
+            [{ nome: salaNome, status: newStatus, unidade, bloco: currentSalasOptions.find(s => s.nome === salaNome)?.bloco || null }],
+            { onConflict: "nome, unidade" }
+          );
+        if (upsertError) throw upsertError;
+      } else {
+        // A) Update via nome+unidade (chave única e confiável, sem risco de UUID inválido)
+        const { data: updatedData, error: salaError } = await supabase
+          .from("salas")
+          .update({ status: newStatus })
+          .eq("nome", salaNome)
+          .eq("unidade", unidade)
+          .select();
 
-      // Tratamento estrito de Erro de Zero Linhas (Silent Failure / RLS)
-      if (!updatedData || updatedData.length === 0) {
-        toast.error(`Falha Crítica: Nenhuma sala atualizada no banco. Verifique se o ID ${salaId} está correto ou se há bloqueio.`);
-        return; // Aborta a operação
+        if (salaError) throw salaError;
+
+        // Tratamento de Falha Silenciosa (0 linhas afetadas)
+        if (!updatedData || updatedData.length === 0) {
+          toast.error(`Falha: Nenhuma sala encontrada com nome "${salaNome}" na unidade. Tente recarregar a página.`);
+          return;
+        }
       }
 
       // Desvincula turmas se status for de interdição
