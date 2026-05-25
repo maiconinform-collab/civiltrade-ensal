@@ -57,18 +57,21 @@ export const dayKey = (d: Date) => {
 /* ── Lógica de Andar ───────────────────────────────── */
 
 export const getAndar = (sala: string): string | null => {
-  const match = sala.match(/(\d)/);
+  const match = sala.match(/^(\d+)/);
   if (!match) return null;
-  const digit = parseInt(match[1]);
-  if (digit === 0) return null;
-  return `${digit}º Andar`;
+  const num = parseInt(match[1]);
+  if (num === 0) return null;
+  const andar = Math.floor(num / 100);
+  if (andar === 0) return null;
+  return `${andar}º Andar`;
 };
 
 export const getAndarNumero = (sala: string): number | null => {
-  const match = sala.match(/(\d)/);
+  const match = sala.match(/^(\d+)/);
   if (!match) return null;
-  const digit = parseInt(match[1]);
-  return digit === 0 ? null : digit;
+  const num = parseInt(match[1]);
+  const andar = Math.floor(num / 100);
+  return andar === 0 ? null : andar;
 };
 
 /* ── Badge de Turno ────────────────────────────────── */

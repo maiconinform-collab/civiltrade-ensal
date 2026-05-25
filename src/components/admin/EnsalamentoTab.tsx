@@ -423,8 +423,11 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
         unidade_id: unidade
       }));
 
-      // Realiza o upsert protetor
-      await supabase.from("salas").upsert(salasParaInserir, { onConflict: "nome,unidade_id" });
+      // Insere as salas faltantes de forma segura e limpa
+      const { error: insertError } = await supabase.from("salas").insert(salasParaInserir);
+      if (insertError) {
+        console.error("Erro ao injetar salas base:", insertError);
+      }
 
       // Busca a lista atualizada com os IDs gerados
       const { data: recarregadas } = await supabase.from("salas").select("id, nome, bloco, status, capacidade").eq("unidade_id", unidade).order("nome");
@@ -496,8 +499,8 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
         };
       });
 
-      // Operação estrita de upsert com onConflict para evitar resíduos e duplicatas
-      const { error } = await supabase.from("salas").upsert(salasParaInserir, { onConflict: "nome,unidade_id" });
+      // Operação estrita de insert para evitar conflitos
+      const { error } = await supabase.from("salas").insert(salasParaInserir);
       if (error) throw error;
 
       toast.success(`${salasParaInserir.length} salas importadas automaticamente com status 'Livre'!`, {
@@ -539,7 +542,12 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
         .eq("unidade_id", unidade)
         .order("nome");
       if (!error && data) {
-        setSalasOptions((data as SalaOption[]) ?? []);
+        if (data.length === 0) {
+          // Se o banco de dados estiver vazio, aciona a injeção automática de salas base
+          await loadOptions();
+        } else {
+          setSalasOptions((data as SalaOption[]) ?? []);
+        }
       }
     };
     fetchSalas();
@@ -922,10 +930,14 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
     const targetSala = currentSalasOptions.find(s => s.nome === remanejarData.novaSala);
     if (targetSala) {
-      const statusDinamico = getSalaStatusDinamico(targetSala.nome, targetSala.bloco, targetSala.status);
-      if (['Manutenção', 'Alagamento', 'Ocupada', 'Defeito Ar'].includes(statusDinamico)) {
-        toast.error(`Ação bloqueada: A sala ${targetSala.nome} está atualmente com status de ${statusDinamico}`);
-        return;
+      const targetDate = remanejarData.aula.data || undefined;
+      const targetTurno = remanejarData.aula.turno || undefined;
+      const statusDinamico = getSalaStatusDinamico(targetSala.nome, targetSala.bloco, targetSala.status, targetDate, targetTurno);
+      if (statusDinamico && statusDinamico !== 'Livre') {
+        const confirmacao = window.confirm(
+          `Atenção: A sala ${targetSala.nome} encontra-se com o status '${statusDinamico}'. Tem certeza que deseja transferir a turma para esta sala mesmo assim?`
+        );
+        if (!confirmacao) return; // Aborta a operação se o usuário clicar em Cancelar
       }
     }
 
