@@ -948,13 +948,20 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
   const handleAlterarStatusSala = async (salaId: string, salaNome: string, newStatus: string) => {
     try {
-      // A) Update no banco
-      const { error: salaError } = await supabase
+      // A) Update no banco com .select() forçado para pegar o retorno
+      const { data: updatedData, error: salaError } = await supabase
         .from("salas")
         .update({ status: newStatus })
-        .eq("nome", salaNome)
-        .eq("unidade", unidade);
+        .eq("id", salaId)
+        .select();
+
       if (salaError) throw salaError;
+
+      // Tratamento estrito de Erro de Zero Linhas (Silent Failure / RLS)
+      if (!updatedData || updatedData.length === 0) {
+        toast.error(`Falha Crítica: Nenhuma sala atualizada no banco. Verifique se o ID ${salaId} está correto ou se há bloqueio.`);
+        return; // Aborta a operação
+      }
 
       // Desvincula turmas se status for de interdição
       if (["Manutenção", "Defeito Ar", "Alagamento"].includes(newStatus)) {
