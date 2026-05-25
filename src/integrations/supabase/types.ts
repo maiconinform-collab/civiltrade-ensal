@@ -111,6 +111,7 @@ export type Database = {
         Row: {
           bloco: string | null
           created_at: string | null
+          data: string | null
           horario: string
           id: string
           observacoes: string | null
@@ -128,6 +129,7 @@ export type Database = {
         Insert: {
           bloco?: string | null
           created_at?: string | null
+          data?: string | null
           horario: string
           id?: string
           observacoes?: string | null
@@ -145,6 +147,7 @@ export type Database = {
         Update: {
           bloco?: string | null
           created_at?: string | null
+          data?: string | null
           horario?: string
           id?: string
           observacoes?: string | null

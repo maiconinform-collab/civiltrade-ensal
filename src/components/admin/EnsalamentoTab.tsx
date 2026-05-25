@@ -23,10 +23,14 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Plus, Pencil, Trash2, Loader2, Search, GripVertical, Upload, ArrowRightLeft } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
+import { Plus, Pencil, Trash2, Loader2, Search, GripVertical, Upload, ArrowRightLeft, Download, CalendarIcon, X } from "lucide-react";
+import { format } from "date-fns";
+import { ptBR } from "date-fns/locale";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { normalizeSearch, statusFor, getAndarNumero, dayKey, getCurrentTurno } from "@/lib/ensalamento-utils";
+import { normalizeSearch, statusFor, getAndarNumero, dayKey, getCurrentTurno, exportToCSV } from "@/lib/ensalamento-utils";
 
 import {
   DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent, useDroppable, useDraggable
@@ -38,7 +42,7 @@ import { CSS } from "@dnd-kit/utilities";
 
 type Ensalamento = {
   id: string; sala: string; bloco: string | null; turno: string; horario: string;
-  professor: string | null; sort_order: number;
+  professor: string | null; sort_order: number; data: string | null;
   segunda: string | null; terca: string | null; quarta: string | null;
   quinta: string | null; sexta: string | null; sabado: string | null;
 };
@@ -47,7 +51,7 @@ type SalaOption = { id: string; nome: string; bloco: string | null; status?: str
 type HorarioOption = { id: string; turno: string; hora_inicio: string; hora_fim: string };
 
 const empty: Omit<Ensalamento, "id" | "sort_order"> = {
-  sala: "", bloco: "", turno: "manha", horario: "", professor: "",
+  sala: "", bloco: "", turno: "manha", horario: "", professor: "", data: "",
   segunda: "", terca: "", quarta: "", quinta: "", sexta: "", sabado: "",
 };
 
@@ -187,7 +191,11 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [now, setNow] = useState(new Date());
   const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
-  const [monthFilter, setMonthFilter] = useState<string>(new Date().getMonth().toString());
+  // Date picker de visualização (filtro da tabela)
+  const [selectedViewDate, setSelectedViewDate] = useState<Date | undefined>(undefined);
+  const [viewCalendarOpen, setViewCalendarOpen] = useState(false);
+  // Date picker do formulário (data específica da aula)
+  const [formCalendarOpen, setFormCalendarOpen] = useState(false);
 
   const [remanejarData, setRemanejarData] = useState<{ aula: Ensalamento, novaSala: string } | null>(null);
 
@@ -248,10 +256,24 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
   }, []);
 
   // --- FUNÇÕES DE BUSCA E CARREGAMENTO ---
-  // Busca as aulas no banco
-  const load = async () => {
+  // Busca as aulas no banco; filtra por data específica quando selectedViewDate estiver definida
+  const load = async (viewDate?: Date) => {
     setLoading(true);
-    const { data, error } = await supabase.from("ensalamento").select("*").eq("unidade", unidade).order("sort_order").order("turno").order("horario");
+    let query = supabase
+      .from("ensalamento")
+      .select("*")
+      .eq("unidade", unidade)
+      .order("sort_order")
+      .order("turno")
+      .order("horario");
+
+    // Quando uma data de visualização está selecionada, filtra no banco
+    const effectiveDate = viewDate !== undefined ? viewDate : selectedViewDate;
+    if (effectiveDate) {
+      query = query.eq("data", format(effectiveDate, "yyyy-MM-dd"));
+    }
+
+    const { data, error } = await query;
     if (error) toast.error("Erro ao carregar", { description: error.message });
     setRows((data as Ensalamento[]) ?? []);
     setLoading(false);
@@ -266,7 +288,11 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
     setHorariosOptions((horariosRes.data as HorarioOption[]) ?? []);
   };
 
-  useEffect(() => { load(); loadOptions(); }, [unidade]);
+  // Recarrega ao trocar de unidade OU ao mudar a data de visualização
+  useEffect(() => { load(); loadOptions(); }, [unidade]); // eslint-disable-line
+
+  // Refetch automático quando a data de visualização muda
+  useEffect(() => { load(selectedViewDate); }, [selectedViewDate]); // eslint-disable-line
 
   // Sincroniza salas da tabela de ensalamento para a tabela de salas caso esta esteja vazia
   const syncSalasFromEnsalamento = async (currentSalas: SalaOption[], currentRows: Ensalamento[]) => {
@@ -515,7 +541,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
     setEditing(r);
     setForm({
       sala: r.sala, bloco: r.bloco ?? "", turno: r.turno, horario: r.horario,
-      professor: r.professor ?? "",
+      professor: r.professor ?? "", data: r.data ?? "",
       segunda: r.segunda ?? "", terca: r.terca ?? "", quarta: r.quarta ?? "",
       quinta: r.quinta ?? "", sexta: r.sexta ?? "", sabado: r.sabado ?? "",
     });
@@ -531,6 +557,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
     setSalaCustom(!salaExists);
     const horarioExists = horariosOptions.some((h) => `${h.hora_inicio}-${h.hora_fim}` === r.horario);
     setHorarioCustom(!horarioExists);
+    setFormCalendarOpen(false);
     setOpen(true);
   };
 
@@ -546,6 +573,7 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
     const payload = {
       ...form,
       bloco: form.bloco || null, professor: form.professor || null,
+      data: form.data || null,
       segunda: combineDay(dayData.segunda.materia, dayData.segunda.horario),
       terca: combineDay(dayData.terca.materia, dayData.terca.horario),
       quarta: combineDay(dayData.quarta.materia, dayData.quarta.horario),
@@ -827,24 +855,49 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
             <p className="text-muted-foreground text-sm">{rows.length} aula{rows.length === 1 ? "" : "s"} cadastrada{rows.length === 1 ? "" : "s"}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <Select value={monthFilter} onValueChange={setMonthFilter}>
-              <SelectTrigger className="w-[140px]"><SelectValue placeholder="Mês" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos os Meses</SelectItem>
-                <SelectItem value="0">Janeiro</SelectItem>
-                <SelectItem value="1">Fevereiro</SelectItem>
-                <SelectItem value="2">Março</SelectItem>
-                <SelectItem value="3">Abril</SelectItem>
-                <SelectItem value="4">Maio</SelectItem>
-                <SelectItem value="5">Junho</SelectItem>
-                <SelectItem value="6">Julho</SelectItem>
-                <SelectItem value="7">Agosto</SelectItem>
-                <SelectItem value="8">Setembro</SelectItem>
-                <SelectItem value="9">Outubro</SelectItem>
-                <SelectItem value="10">Novembro</SelectItem>
-                <SelectItem value="11">Dezembro</SelectItem>
-              </SelectContent>
-            </Select>
+            {/* Date Picker de Visualização — filtra tabela por data específica */}
+            <Popover open={viewCalendarOpen} onOpenChange={setViewCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={`w-[180px] justify-start text-left font-normal ${
+                    selectedViewDate ? "border-primary text-primary" : "text-muted-foreground"
+                  }`}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {selectedViewDate
+                    ? format(selectedViewDate, "dd/MM/yyyy", { locale: ptBR })
+                    : "Filtrar por data"}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={selectedViewDate}
+                  onSelect={(date) => {
+                    setSelectedViewDate(date);
+                    setViewCalendarOpen(false);
+                  }}
+                  locale={ptBR}
+                  initialFocus
+                />
+                {selectedViewDate && (
+                  <div className="p-2 border-t border-border">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="w-full text-muted-foreground hover:text-foreground"
+                      onClick={() => {
+                        setSelectedViewDate(undefined);
+                        setViewCalendarOpen(false);
+                      }}
+                    >
+                      <X className="w-3 h-3 mr-1" /> Limpar data
+                    </Button>
+                  </div>
+                )}
+              </PopoverContent>
+            </Popover>
 
             <Select value={andarFilter} onValueChange={setAndarFilter}>
               <SelectTrigger className="w-[140px]"><SelectValue placeholder="Andar" /></SelectTrigger>
@@ -885,6 +938,22 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
             >
               {importing ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
               {importing ? "Importando..." : "Importar Planilha"}
+            </Button>
+
+            {/* BOTÃO: Exportar Planilha (multi-tenant: respeita filtro de unidade) */}
+            <Button
+              onClick={() => {
+                exportToCSV(rows, unidade);
+                toast.success("Planilha exportada!", {
+                  description: `Apenas dados da unidade '${unidade}' foram exportados.`
+                });
+              }}
+              variant="outline"
+              disabled={rows.length === 0}
+              className="hover:border-green-500 hover:text-green-600 transition-smooth"
+            >
+              <Download className="w-4 h-4 mr-2" />
+              Exportar Planilha
             </Button>
 
             {/* BOTÃO ADICIONADO: Buscar Salas Livres */}
@@ -1006,7 +1075,13 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                 ) : (
                   <SortableContext items={filtered.map(r => r.id)} strategy={verticalListSortingStrategy}>
                     {filtered.map((r) => {
-                      const st = statusFor(r.horario, now);
+                      // Se a aula tem data específica, verificar se é hoje
+                      const today = now.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit' });
+                      const [dd, mm, yyyy] = today.split('/');
+                      const todayISO = `${yyyy}-${mm}-${dd}`;
+                      const aaulaDataMatch = r.data ? r.data === todayISO : true;
+                      // Se tem data e não é hoje (ex: domingo sem aulas), não exibe como ao vivo
+                      const st = aaulaDataMatch ? statusFor(r.horario, now) : (r.data && r.data < todayISO ? "done" : "scheduled");
                       const isLive = st === "now";
                       return (
                         <SortableRow key={r.id} id={r.id} className={isLive ? "bg-primary/5" : ""}>
@@ -1129,7 +1204,58 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
 
               <div className="space-y-2 md:col-span-2"><Label>Professor</Label><Input value={form.professor ?? ""} onChange={(e) => setForm({ ...form, professor: e.target.value })} /></div>
 
-              <div className="md:col-span-2 mt-4"><h3 className="font-semibold border-b border-border pb-2">Dias da Semana (Disciplina e Horário Específico)</h3></div>
+              {/* DATE PICKER — Data Específica da Aula */}
+              <div className="space-y-2 md:col-span-2">
+                <Label className="flex items-center gap-1.5">
+                  <CalendarIcon className="w-3.5 h-3.5 text-primary" />
+                  Data da Aula
+                  <span className="text-[10px] text-muted-foreground font-normal">(deixe em branco para aulas semanais recorrentes)</span>
+                </Label>
+                <Popover open={formCalendarOpen} onOpenChange={setFormCalendarOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={`w-full justify-start text-left font-normal ${
+                        form.data ? "border-primary text-foreground" : "text-muted-foreground"
+                      }`}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {form.data
+                        ? format(new Date(form.data + "T12:00:00"), "dd/MM/yyyy (EEEE)", { locale: ptBR })
+                        : "Selecionar data específica..."}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={form.data ? new Date(form.data + "T12:00:00") : undefined}
+                      onSelect={(date) => {
+                        setForm({ ...form, data: date ? format(date, "yyyy-MM-dd") : "" });
+                        setFormCalendarOpen(false);
+                      }}
+                      locale={ptBR}
+                      initialFocus
+                    />
+                    {form.data && (
+                      <div className="p-2 border-t border-border">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="w-full text-muted-foreground hover:text-foreground"
+                          onClick={() => {
+                            setForm({ ...form, data: "" });
+                            setFormCalendarOpen(false);
+                          }}
+                        >
+                          <X className="w-3 h-3 mr-1" /> Limpar (aula recorrente)
+                        </Button>
+                      </div>
+                    )}
+                  </PopoverContent>
+                </Popover>
+              </div>
+
+              <div className="md:col-span-2 mt-2"><h3 className="font-semibold border-b border-border pb-2">Dias da Semana (Disciplina e Horário Específico)</h3></div>
 
               {(["segunda", "terca", "quarta", "quinta", "sexta", "sabado"] as const).map((d) => {
                 return (

@@ -19,7 +19,7 @@ export const useUserRole = () => {
         .select("role, unidade")
         .eq("user_id", uid);
       if (!active) return;
-      
+
       const userRoles = ((data ?? []) as any[]).map((r) => r.role);
       const userUnidade = data?.[0]?.unidade ?? 'trade';
 

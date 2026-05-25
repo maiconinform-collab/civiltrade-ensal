@@ -147,3 +147,71 @@ export const getCurrentDayAndTurno = (date: Date = new Date()) => {
     turno: getCurrentTurno(date)
   };
 };
+
+/* ── Exportação CSV (compatível Excel BR) ─────────── */
+
+type EnsalamentoRow = {
+  sala: string;
+  bloco: string | null;
+  turno: string;
+  horario: string;
+  professor: string | null;
+  data?: string | null;
+  segunda: string | null;
+  terca: string | null;
+  quarta: string | null;
+  quinta: string | null;
+  sexta: string | null;
+  sabado: string | null;
+  [key: string]: any;
+};
+
+/**
+ * Gera e faz download de um CSV com delimitador ';' (padrão Excel BR).
+ * SEGURANÇA MULTI-TENANT: filtra estritamente por unidade antes de exportar.
+ *
+ * @param rows   Todas as linhas da tabela já carregadas do banco
+ * @param unidade Identificador da unidade ativa (ex: 'trade', 'patamares')
+ */
+export const exportToCSV = (rows: EnsalamentoRow[], unidade: string): void => {
+  // Multi-tenant guard: só exporta registros que pertencem à unidade ativa
+  const safeRows = rows.filter((r) => !r.unidade || r.unidade === unidade);
+
+  const headers = [
+    "sala", "bloco", "turno", "horario", "professor", "data",
+    "segunda", "terca", "quarta", "quinta", "sexta", "sabado",
+  ];
+
+  const escapeCell = (val: string | null | undefined): string => {
+    if (val === null || val === undefined) return "";
+    const str = String(val);
+    // Envolve em aspas duplas se contiver ';', '"' ou quebra de linha
+    if (str.includes(";") || str.includes('"') || str.includes("\n")) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const headerLine = headers.join(";");
+  const dataLines = safeRows.map((row) =>
+    headers.map((h) => escapeCell(row[h])).join(";")
+  );
+
+  const csvContent = [headerLine, ...dataLines].join("\r\n");
+
+  // Adiciona BOM UTF-8 para garantir exibição correta no Excel
+  const bom = "\uFEFF";
+  const blob = new Blob([bom + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+
+  const today = new Date().toISOString().slice(0, 10);
+  const fileName = `ENSALAMENTO_${unidade.toUpperCase()}_${today}.csv`;
+
+  const link = document.createElement("a");
+  link.setAttribute("href", url);
+  link.setAttribute("download", fileName);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
