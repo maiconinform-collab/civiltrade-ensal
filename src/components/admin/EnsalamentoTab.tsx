@@ -1,4 +1,4 @@
-git /**
+/**
  * Aba de Gestão do Ensalamento.
  * 
  * Objetivo: Permite aos administradores criar, editar, excluir e reordenar as aulas.
