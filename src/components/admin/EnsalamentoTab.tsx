@@ -329,14 +329,12 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
     return isOcupada ? "Ocupada" : "Livre";
   };
 
+  // Deduplicação rigorosa por NOME da sala (chave única).
+  // Garante 1 entrada por número de sala, independentemente de variações de bloco ou cache legado.
   const uniqueSalasOptions = useMemo(() => {
-    const seen = new Set<string>();
-    return salasOptions.filter(s => {
-      const key = `${s.nome}-${s.bloco || ""}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    });
+    return Array.from(
+      new Map(salasOptions.map(s => [s.nome, s])).values()
+    );
   }, [salasOptions]);
 
   const fallbackSalasOptions: SalaOption[] = useMemo(() => {
@@ -354,7 +352,9 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
     return fallback;
   }, []);
 
-  const currentSalasOptions = uniqueSalasOptions.length > 0 ? uniqueSalasOptions : fallbackSalasOptions;
+  // Fonte final de salas: sempre deduplicada por nome antes de qualquer .map() no DnD
+  const salasUnicas = uniqueSalasOptions.length > 0 ? uniqueSalasOptions : fallbackSalasOptions;
+  const currentSalasOptions = salasUnicas;
 
   const sensors = useSensors(
     useSensor(PointerSensor),

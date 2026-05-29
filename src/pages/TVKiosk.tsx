@@ -107,30 +107,36 @@ const TVKiosk = () => {
   const today = dayKey(now);
   const singleTimeDurationMinutes = settings.single_time_duration_minutes ?? 60;
 
-  // Sorted: suporta modelo atômico (disciplina) e fallback legado (r[today])
+  // Sorted: suporta modelo atômico (disciplina) e fallback legado (r[today]).
+  // IMPORTANTE: NÃO filtra aulas sem disciplina — todas as aulas agendadas são exibidas na TV.
   const sorted = useMemo(() => {
     const list = rows
       .map((r) => {
-        // Modelo atômico: usa disciplina diretamente
-        if (r.disciplina && r.disciplina.trim().length > 0) {
+        // Modelo atômico: tem disciplina preenchida → usa diretamente
+        if (r.disciplina && r.disciplina.trim().length > 0 && r.disciplina.trim() !== "-") {
           return { ...r, disciplina: r.disciplina };
         }
-        // Fallback legado: lê a coluna do dia da semana
-        if (!today) return null;
-        let rawDisciplina = (r as any)[today] as string | null;
-        if (!rawDisciplina || rawDisciplina.trim().length === 0) return null;
 
-        let disciplina = rawDisciplina;
-        let horarioOverride = r.horario;
-        const timeRegex = /\b(\d{1,2}[:hH]\d{0,2}\s*[-–àaté]+\s*\d{1,2}[:hH]\d{0,2})\b/i;
-        const match = rawDisciplina.match(timeRegex);
-        if (match) {
-          horarioOverride = match[1].replace(/\s*(?:[-–àaté]+)\s*/i, "-").replace(/[hH]s?/g, ":00");
-          disciplina = rawDisciplina.replace(timeRegex, "").replace(/\s{2,}/g, " ").trim();
+        // Fallback legado: tenta ler a coluna do dia da semana
+        if (today) {
+          let rawDisciplina = (r as any)[today] as string | null;
+          if (rawDisciplina && rawDisciplina.trim().length > 0) {
+            let disciplina = rawDisciplina;
+            let horarioOverride = r.horario;
+            const timeRegex = /\b(\d{1,2}[:hH]\d{0,2}\s*[-–àaté]+\s*\d{1,2}[:hH]\d{0,2})\b/i;
+            const match = rawDisciplina.match(timeRegex);
+            if (match) {
+              horarioOverride = match[1].replace(/\s*(?:[-–àaté]+)\s*/i, "-").replace(/[hH]s?/g, ":00");
+              disciplina = rawDisciplina.replace(timeRegex, "").replace(/\s{2,}/g, " ").trim();
+            }
+            return { ...r, disciplina, horario: horarioOverride };
+          }
         }
-        return { ...r, disciplina, horario: horarioOverride };
+
+        // Sem disciplina e sem dado legado → mantém na lista com disciplina nula (exibe fallback visual)
+        return { ...r, disciplina: null };
       })
-      .filter((r): r is Ensalamento & { disciplina: string } => r !== null && r.disciplina !== null && r.disciplina.trim().length > 0);
+      .filter((r): r is Ensalamento => r !== null && r.sala !== "" && r.sala != null);
 
     return list.sort((a, b) => {
       if (a.sort_order !== b.sort_order) return (a.sort_order || 0) - (b.sort_order || 0);
@@ -343,7 +349,10 @@ const TVKiosk = () => {
                     </div>
 
                     <h3 className={`text-base sm:text-lg md:text-xl font-semibold mb-3 text-balance line-clamp-2 ${isNow ? "text-primary" : ""}`}>
-                      {(r as any).disciplina}
+                      {(r as any).disciplina && (r as any).disciplina.trim().length > 0
+                        ? (r as any).disciplina
+                        : <em className="text-muted-foreground font-normal">Aula Agendada</em>
+                      }
                     </h3>
 
                     <div className="space-y-1.5 text-sm text-muted-foreground">
@@ -351,12 +360,13 @@ const TVKiosk = () => {
                         <Clock className="w-4 h-4 flex-shrink-0" />
                         <span className="tabular-nums font-medium">{r.horario}</span>
                       </div>
-                      {r.professor && (
-                        <div className="flex items-center gap-2">
-                          <User className="w-4 h-4 flex-shrink-0" />
-                          <span className="truncate">{r.professor}</span>
-                        </div>
-                      )}
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4 flex-shrink-0" />
+                        {r.professor && r.professor.trim().length > 0
+                          ? <span className="truncate">{r.professor}</span>
+                          : <em className="text-muted-foreground/60">A definir</em>
+                        }
+                      </div>
                     </div>
                   </div>
                 );
@@ -415,14 +425,13 @@ const TVKiosk = () => {
           animation: marquee-infinite 30s linear infinite;
         }
       `}</style>
-      <div 
-        className={`py-2 overflow-hidden relative shrink-0 transition-all duration-300 ${
-          isUrgente 
-            ? "bg-red-600 dark:bg-rose-600 animate-pulse text-white font-bold uppercase" 
+      <div
+        className={`py-2 overflow-hidden relative shrink-0 transition-all duration-300 ${isUrgente
+            ? "bg-red-600 dark:bg-rose-600 animate-pulse text-white font-bold uppercase"
             : "bg-primary/95 text-primary-foreground font-medium"
-        }`}
+          }`}
       >
-        <div 
+        <div
           className="flex whitespace-nowrap animate-marquee-infinite"
           style={{
             animationDuration: `${Math.max(10, marqueeText.length * 0.15)}s`
