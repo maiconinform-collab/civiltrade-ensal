@@ -1289,22 +1289,22 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
               <DraggableStatusCard status="Alagamento" />
             </div>
 
-            {/* ZONA DE INTERDIÇÃO + GRID DE SALAS DROPPABLE */}
+            {/* GRID DE SALAS DROPPABLE */}
             <div className="space-y-4">
-              {/* Zona de Manutenção rápida (DnD de turma) */}
-              <div className="flex flex-col items-start gap-2">
-                <span className="text-xs text-muted-foreground font-semibold">Enviar turma diretamente para Manutenção (DnD):</span>
-                <DroppableMaintenanceZone />
-              </div>
 
               {/* GRID DE SALAS DROPPABLE — principal área de remanejamento visual */}
               <div className="space-y-4">
                 <span className="text-xs text-muted-foreground font-semibold">🏠 Arraste a turma até a sala de destino:</span>
                 <div className="flex flex-col gap-6">
                   {andaresUnicos.map(andar => {
-                    const salasDoAndar = currentSalasOptions
-                      .map(s => ({ ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status) }))
-                      .filter(s => getAndarNumero(s.nome) === andar);
+                    // Deduplicação rigorosa por nome da sala — garante 1 cartão por sala por andar
+                    const salasDoAndar = Array.from(
+                      new Map(
+                        currentSalasOptions
+                          .filter(s => getAndarNumero(s.nome) === andar)
+                          .map(s => [s.nome, { ...s, statusDinamico: getSalaStatusDinamico(s.nome, s.bloco, s.status) }])
+                      ).values()
+                    );
 
                     if (salasDoAndar.length === 0) return null;
 
