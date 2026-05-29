@@ -1,4 +1,4 @@
-/**
+git /**
  * Aba de Gestão do Ensalamento.
  * 
  * Objetivo: Permite aos administradores criar, editar, excluir e reordenar as aulas.
@@ -684,8 +684,37 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
       const { error } = await supabase.from("ensalamento").insert(mappedRows);
       if (error) throw error;
 
+      // ── DEDUPLICAÇÃO EM MEMÓRIA das salas encontradas no CSV ──────────────────
+      // Usa Map com chave 'nome' para garantir que cada sala aparece UMA ÚNICA VEZ
+      // no payload do upsert, independentemente de quantas aulas referenciam a mesma sala.
+      const salasUnicasMap = new Map<string, { nome: string; bloco: string | null; status: string; unidade_id: string }>();
+      for (const r of mappedRows) {
+        if (r.sala && !salasUnicasMap.has(r.sala)) {
+          const isAndar11 = ["1101", "1102", "1103", "1104"].includes(r.sala);
+          salasUnicasMap.set(r.sala, {
+            nome: r.sala,
+            bloco: isAndar11 ? "11º Andar" : (r.bloco || null),
+            status: "Livre",
+            unidade_id: unidade,
+          });
+        }
+      }
+      const salasParaUpsert = Array.from(salasUnicasMap.values());
+
+      if (salasParaUpsert.length > 0) {
+        // onConflict garante idempotência: se a sala já existe, actualiza apenas o bloco
+        const { error: upsertError } = await supabase
+          .from("salas")
+          .upsert(salasParaUpsert, { onConflict: "nome,unidade_id" });
+        if (upsertError) {
+          console.warn("Upsert de salas após importação falhou (não crítico):", upsertError.message);
+        }
+      }
+      // ──────────────────────────────────────────────────────────────────────────
+
       toast.success(`${mappedRows.length} aula(s) importada(s) com sucesso!`);
       load();
+      loadOptions(); // Garante que o painel DnD reflecte as salas recém-importadas
     } catch (err: any) {
       toast.error("Erro ao importar", { description: err.message });
     } finally {
@@ -1601,19 +1630,57 @@ const EnsalamentoTab = ({ unidade }: { unidade: string }) => {
                         <CommandList>
                           <CommandEmpty>Nenhuma sala encontrada.</CommandEmpty>
                           <CommandGroup>
-                            {currentSalasOptions.map((s) => (
-                              <CommandItem
-                                key={s.id}
-                                value={s.nome}
-                                onSelect={(currentValue) => {
-                                  setForm({ ...form, sala: currentValue, bloco: s.bloco ?? "" });
-                                  setSalaComboboxOpen(false);
-                                }}
-                              >
-                                <Check className={`mr-2 h-4 w-4 ${form.sala === s.nome ? "opacity-100" : "opacity-0"}`} />
-                                {s.nome}{s.bloco ? ` (Bl. ${s.bloco})` : ""}
-                              </CommandItem>
-                            ))}
+                            {currentSalasOptions.map((s) => {
+                              // ── STATUS BASE: interdição manual no banco ──
+                              const statusInterdicao = ["Manutenção", "Defeito Ar", "Alagamento"].includes(s.status || "")
+                                ? s.status!
+                                : null;
+
+                              // ── STATUS DINÂMICO: conflito de agenda com 'rows' ──
+                              // Verifica se já existe uma aula que cruza mesma sala + data + horário
+                              const isConflito = !statusInterdicao && rows.some((r) => {
+                                if (editing && r.id === editing.id) return false; // ignora o próprio registo em edição
+                                if (r.sala !== s.nome) return false;
+                                if (form.horario && r.horario !== form.horario) return false;
+                                if (form.data && r.data && r.data !== form.data) return false;
+                                return true;
+                              });
+
+                              const salaStatus: "interdita" | "ocupada" | "livre" =
+                                statusInterdicao ? "interdita" : isConflito ? "ocupada" : "livre";
+
+                              const isDisabled = salaStatus !== "livre";
+
+                              const label =
+                                salaStatus === "interdita"
+                                  ? `${s.nome}${s.bloco ? ` (Bl. ${s.bloco})` : ""} — 🔴 ${statusInterdicao}`
+                                  : salaStatus === "ocupada"
+                                    ? `${s.nome}${s.bloco ? ` (Bl. ${s.bloco})` : ""} — 🔴 Ocupada`
+                                    : `${s.nome}${s.bloco ? ` (Bl. ${s.bloco})` : ""} — 🟢 Livre`;
+
+                              return (
+                                <CommandItem
+                                  key={s.id || s.nome}
+                                  value={s.nome}
+                                  disabled={isDisabled}
+                                  onSelect={(currentValue) => {
+                                    if (isDisabled) return;
+                                    setForm({ ...form, sala: currentValue, bloco: s.bloco ?? "" });
+                                    setSalaComboboxOpen(false);
+                                  }}
+                                  className={isDisabled ? "opacity-50 cursor-not-allowed pointer-events-none" : ""}
+                                >
+                                  <Check className={`mr-2 h-4 w-4 ${form.sala === s.nome ? "opacity-100" : "opacity-0"}`} />
+                                  <span className={
+                                    salaStatus === "livre"
+                                      ? "text-green-700 dark:text-green-400 font-medium"
+                                      : "text-red-600 dark:text-red-400"
+                                  }>
+                                    {label}
+                                  </span>
+                                </CommandItem>
+                              );
+                            })}
                           </CommandGroup>
                         </CommandList>
                       </Command>

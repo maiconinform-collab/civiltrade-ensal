@@ -427,8 +427,8 @@ const TVKiosk = () => {
       `}</style>
       <div
         className={`py-2 overflow-hidden relative shrink-0 transition-all duration-300 ${isUrgente
-            ? "bg-red-600 dark:bg-rose-600 animate-pulse text-white font-bold uppercase"
-            : "bg-primary/95 text-primary-foreground font-medium"
+          ? "bg-red-600 dark:bg-rose-600 animate-pulse text-white font-bold uppercase"
+          : "bg-primary/95 text-primary-foreground font-medium"
           }`}
       >
         <div
